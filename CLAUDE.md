@@ -84,7 +84,8 @@ Manual rasters stop the getter with an explicit message naming the URL and the e
 │   ├── 00b_renv_init.R      # opt-in renv setup
 │   ├── 01_boundaries_pop.R  # boundaries + WorldPop + adjacency   [DONE]
 │   ├── 02_covariates_helpers.R  # raster getters, shared by 02 and 05
-│   ├── 02_covariates.R      # EO stack + commune/cluster extraction
+│   ├── 02_covariates.R      # EO stack + commune/cluster extraction   [DONE]
+│   ├── 02b_covariate_diagnostics.R  # checks, highland profile, collinearity
 │   ├── 03_dhs_direct.R      # read KR/PR/IR, design, direct estimates
 │   ├── 04_model_summer.R    # BYM2 area-level
 │   ├── 05_model_spde.R      # SPDE/INLA continuous surface
@@ -116,6 +117,26 @@ The three boundary layers were edited at different dates and disagree. `01_bound
 3. Region **Ambatosoa** (`MG34`) exists in adm1 but has no districts or communes in adm2/adm3, so results cannot be reported for it separately. No population is lost — its territory sits under Analanjirofo.
 4. Commune **names are not unique** (166 duplicates). Always join on `ADM3_PCODE`.
 5. The commune adjacency graph has 4 components (offshore islands). `01` adds the minimum number of artificial edges to connect it, because an ICAR/BYM2 prior on a disconnected graph is improper. Edges added are logged to `outputs/tables/01_adjacency_edges_added.csv`.
+
+## Analytical constraint established by `02b` (read before interpreting `07`)
+
+Measured on the 1,701-commune covariate stack:
+
+- Elevation correlates **−0.93** with mean temperature and **−0.90** with the
+  coldest-month minimum. Altitude and cold are effectively the same variable in
+  Madagascar. The decomposition in `07` therefore **cannot** separate "H1 cold
+  stress" from "altitude per se" — block A should be reported as a single
+  altitude–temperature construct, not as evidence for a thermal mechanism
+  specifically.
+- Elevation correlates only **0.52** with cropland fraction, **0.14** with
+  population density and **0.13** with built-up fraction. H2 and H3 *are*
+  separable from H1, so the interesting attribution — how much of the highland
+  penalty is diet, how much is infection load — is identifiable.
+- 40% of Madagascar's under-5 population lives above 800 m, so the highland
+  contrast is between two large groups, not a small subgroup against the rest.
+
+Population-weighted highland (>800 m) vs lowland: coldest-month minimum 9.0 vs
+14.4 °C, cropland fraction 0.29 vs 0.075, tree cover 0.098 vs 0.305.
 
 ## Working conventions for Claude Code
 

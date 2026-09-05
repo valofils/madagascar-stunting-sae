@@ -54,6 +54,7 @@ Rscript run_all.R 1 2      # selected stages only
 |---|---|---|---|
 | 1 | `01_boundaries_pop.R` | harmonise adm1–adm3, WorldPop population, commune adjacency graph | no |
 | 2 | `02_covariates.R` | EO raster stack → commune and DHS-cluster covariates | partly |
+| 2b | `02b_covariate_diagnostics.R` | covariate integrity checks, highland profile, collinearity | no |
 | 3 | `03_dhs_direct.R` | design-based direct estimates (`survey`/`srvyr`) | yes |
 | 4 | `04_model_summer.R` | SUMMER BYM2 smoothed-direct, district level | yes |
 | 5 | `05_model_spde.R` | binomial SPDE/INLA geostatistical surface, 1 km | yes |
