@@ -1,0 +1,50 @@
+# ---- DHS microdata: redistribution is forbidden by the DHS terms of use ----
+data/raw/dhs/
+*.DTA
+*.dta
+*.SAV
+*.sav
+*.MAP
+*.DCT
+*.DO
+
+# ---- Large binary inputs: re-downloadable by 01/02, never committed --------
+data/raw/rasters/
+data/raw/boundaries/
+*.tif
+*.tiff
+*.vrt
+*.rar
+*.zip
+*.7z
+
+# ---- Derived data ---------------------------------------------------------
+data/interim/
+data/processed/
+*.gpkg
+*.rds
+
+# ---- R / renv -------------------------------------------------------------
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+renv/library/
+renv/local/
+renv/staging/
+renv/python/
+renv/sandbox/
+
+# ---- Python (only if GEE extraction is used) ------------------------------
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ---- OS ------------------------------------------------------------------
+Thumbs.db
+.DS_Store
+
+# ---- Keep the figures and tables: they are the deliverable ----------------
+!outputs/figures/*.png
+!outputs/tables/*.csv
