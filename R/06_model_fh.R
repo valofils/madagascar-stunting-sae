@@ -100,18 +100,24 @@ fit_fh <- function(covars, label) {
   msg("fitting FH [", label, "] with ", length(covars), " covariates on ",
       sum(!is.na(d$logit_direct)), " sampled districts")
 
+  # mse_type = "analytical" is the Prasad-Rao style estimator and needs no
+  # bootstrap, so B is left at its default; transformation = "no" because the
+  # response is already on the logit scale.
   f <- tryCatch(
     emdi::fh(fixed = fml, vardir = "logit_var_smooth", combined_data = d,
-             domains = "ADM2_PCODE", method = "ml", MSE = TRUE, B = c(0, 50),
-             transformation = "no", eff_smpsize = NULL),
+             domains = "ADM2_PCODE", method = "ml", MSE = TRUE,
+             mse_type = "analytical", transformation = "no"),
     error = function(e) { msg("FH [", label, "] failed: ", conditionMessage(e)); NULL })
   if (is.null(f)) return(NULL)
 
+  # emdi reports the Lahiri-Rao / Nagelkerke style pseudo-R2 measures used in
+  # the WB paper, which is what makes the comparison with it meaningful.
   r2 <- tryCatch(summary(f)$model$model_select, error = function(e) NULL)
   if (!is.null(r2)) {
     utils::write.csv(as.data.frame(r2),
                      file.path(DIR$tables, paste0("06_fh_", label, "_fit.csv")))
-    msg("  [", label, "] marginal R2 ", round(r2$AdjR2 %||% NA_real_, 3))
+    msg("  [", label, "] fit measures: ",
+        paste(names(r2), signif(unlist(r2), 3), sep = "=", collapse = "  "))
   }
   utils::capture.output(summary(f),
     file = file.path(DIR$tables, paste0("06_fh_", label, "_summary.txt")))

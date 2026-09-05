@@ -151,11 +151,15 @@ if (file.exists(OUT$cov_commune)) {
   if ("elevation" %in% names(cc)) {
     com2 <- dplyr::left_join(com, cc[, c("ADM3_PCODE", "elevation")], by = "ADM3_PCODE")
     com2$zone <- ifelse(com2$elevation > 800, "Highland (>800 m)", "Lowland")
+    # wt_u5 keeps the weight vector intact: summarise() evaluates in order, so
+    # naming the group total pop_u5 before the weighted mean would collapse the
+    # weight to a scalar and error out.
     summ <- com2 |>
+      dplyr::mutate(wt_u5 = pop_u5) |>
       dplyr::group_by(zone) |>
       dplyr::summarise(communes = dplyr::n(),
-                       pop_u5 = sum(pop_u5, na.rm = TRUE),
-                       stunting = stats::weighted.mean(est, pop_u5, na.rm = TRUE),
+                       stunting = stats::weighted.mean(est, wt_u5, na.rm = TRUE),
+                       pop_u5 = sum(wt_u5, na.rm = TRUE),
                        children_stunted = sum(n_stunted, na.rm = TRUE),
                        .groups = "drop")
     utils::write.csv(summ, file.path(DIR$tables, "08_highland_lowland.csv"),

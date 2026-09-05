@@ -1,0 +1,14 @@
+"variable","r_with_elevation"
+"elevation",1
+"temp_mean",-0.925
+"temp_min_cold",-0.899
+"frac_crop",0.522
+"frac_tree",-0.436
+"ruggedness",0.381
+"temp_seasonality",0.295
+"precip_annual",-0.277
+"frac_water_perm",-0.254
+"frac_grass",0.239
+"precip_seasonality",0.235
+"pop_dens",0.139
+"frac_built",0.131
