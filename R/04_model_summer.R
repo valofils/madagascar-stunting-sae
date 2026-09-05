@@ -90,7 +90,8 @@ msg("adjacency: ", nrow(Amat), " districts, mean neighbours ",
 # square kilometre.
 COVARS <- c("elevation", "ruggedness", "temp_min_cold", "temp_seasonality",
             "precip_annual", "precip_seasonality", "frac_crop", "frac_built",
-            "frac_water_perm", "cattle_density", "travel_time", "nightlights")
+            "frac_water_perm", "cattle_density", "travel_time",
+            "travel_time_healthcare", "nightlights")
 
 X <- NULL
 if (file.exists(OUT$cov_commune)) {

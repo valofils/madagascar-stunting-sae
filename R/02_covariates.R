@@ -52,6 +52,26 @@ extract_continuous <- function(zones, id_col) {
   out
 }
 
+# Coarse rasters have no value at all for zones smaller than one cell that sit
+# in water-masked areas - GLW4 cattle is 5 arc-minutes (~10 km), so the small
+# offshore communes (Nosy Komba, Nosy Be) come back NA. Left alone, a single
+# NA commune propagates: 04 and 06 drop any covariate that is missing anywhere,
+# so one 26 km2 island would remove cattle density from the whole analysis.
+# Fill from the nearest zone that does have a value, and say how many.
+fill_from_nearest <- function(df, zones, vars) {
+  stopifnot(nrow(df) == nrow(zones))
+  for (v in intersect(vars, names(df))) {
+    miss <- which(is.na(df[[v]]))
+    if (length(miss) == 0) next
+    have <- which(!is.na(df[[v]]))
+    if (length(have) == 0) { msg("all values missing for ", v, " - left as NA"); next }
+    nearest <- sf::st_nearest_feature(zones[miss, ], zones[have, ])
+    df[[v]][miss] <- df[[v]][have[nearest]]
+    msg("filled ", length(miss), " missing ", v, " from the nearest zone")
+  }
+  df
+}
+
 extract_landcover <- function(zones, id_col) {
   vrt <- tryCatch(get_worldcover_vrt(), error = function(e) NULL)
   if (is.null(vrt)) {
@@ -79,6 +99,7 @@ extract_landcover <- function(zones, id_col) {
 # ===========================================================================
 msg("=== commune-level extraction (", nrow(adm3), " communes) ===")
 cov_com <- extract_continuous(adm3, "ADM3_PCODE")
+cov_com <- fill_from_nearest(cov_com, adm3, setdiff(names(cov_com), "ADM3_PCODE"))
 lc_com <- extract_landcover(adm3, "ADM3_PCODE")
 if (!is.null(lc_com)) cov_com <- dplyr::left_join(cov_com, lc_com, by = "ADM3_PCODE")
 
@@ -137,6 +158,7 @@ if (length(ge_files) == 0) {
   buf <- sf::st_buffer(ge_eq, dist = ge_eq$buffer_m)
 
   cov_clu <- extract_continuous(buf, "DHSCLUST")
+  cov_clu <- fill_from_nearest(cov_clu, buf, setdiff(names(cov_clu), "DHSCLUST"))
   lc_clu <- extract_landcover(buf, "DHSCLUST")
   if (!is.null(lc_clu)) cov_clu <- dplyr::left_join(cov_clu, lc_clu, by = "DHSCLUST")
 

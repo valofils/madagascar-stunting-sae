@@ -56,7 +56,9 @@ cc$zone <- ifelse(cc$elevation > HIGHLAND_M, "Highland (>800 m)", "Lowland")
 VARS <- intersect(c("elevation", "ruggedness", "temp_min_cold", "temp_mean",
                     "temp_seasonality", "precip_annual", "precip_seasonality",
                     "frac_crop", "frac_tree", "frac_grass", "frac_built",
-                    "frac_water_perm", "pop_dens"), names(cc))
+                    "frac_water_perm", "pop_dens", "cattle_density",
+                    "travel_time", "travel_time_healthcare", "nightlights"),
+                  names(cc))
 
 # Population-weighted, because the question is what the average CHILD is
 # exposed to, not what the average commune polygon looks like.

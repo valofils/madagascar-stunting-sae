@@ -66,40 +66,84 @@ get_worldclim <- function() {
   terra::rast(f)
 }
 
-# --- H2: livestock density (FAO GLW4 cattle) -------------------------------
+# --- H2: livestock density (Gridded Livestock of the World 4, cattle) ------
 # Proxy for access to animal-source foods, the nutrient missing from a
-# rice-dominated highland diet.
+# rice-dominated highland diet. GLW4 is published on Harvard Dataverse; we take
+# the DASYMETRIC product (Da), which redistributes census counts using
+# suitability covariates, rather than the areal-weighted (Aw) one, because Aw
+# simply spreads district totals uniformly and would wash out exactly the
+# within-district contrast this project is about.
+# Resolution is 5 arc-minutes (~10 km), coarser than the other covariates: it
+# resolves district-scale variation but not commune-scale variation, and the
+# effect table should not over-read a fine-grained cattle signal.
+GLW4_CATTLE_URL <- "https://dataverse.harvard.edu/api/access/datafile/6769711"
+
 get_livestock <- function() {
   f <- file.path(rdir("livestock"), "mdg_cattle.tif")
   if (!file.exists(f)) {
-    src <- file.path(rdir("livestock"), "GLW4_cattle_global.tif")
-    if (!file.exists(src))
-      stop("Cattle density raster missing.\n",
-           "  Download GLW4 cattle (2020, dasymetric) from\n",
-           "  https://data.apps.fao.org/catalog/  and save it as:\n  ", src,
-           call. = FALSE)
+    src <- download_if_missing(GLW4_CATTLE_URL,
+                               file.path(rdir("livestock"), "GLW4_cattle_global.tif"))
     terra::writeRaster(crop_mdg(terra::rast(src)), f, overwrite = TRUE)
   }
   r <- terra::rast(f); names(r) <- "cattle_density"; r
 }
 
-# --- H4: travel time to cities (Weiss et al. 2018) -------------------------
+# --- H4: travel time (Malaria Atlas Project WCS) ---------------------------
+# Two complementary accessibility surfaces, both at 30 arc-seconds (~1 km):
+#   travel_time            Weiss et al. (2018), minutes to the nearest city
+#                          (>=50,000 inhabitants), nominal year 2015.
+#   travel_time_healthcare Weiss et al. (2020), motorized minutes to the
+#                          nearest health facility, nominal year 2020.
+# The second is the more direct H4 measure for this project, since the commune
+# is the catchment unit for Madagascar's basic health centres, and it is closer
+# in time to the 2021 DHS. Both are kept: distance to markets and distance to
+# care are different exposures and need not move together.
+#
+# The MAP GeoServer serves these over WCS 2.0.1 and honours a bounding-box
+# subset, so we fetch only the Madagascar window rather than the global grid.
+MAP_WCS <- "https://data.malariaatlas.org/geoserver/ows"
+
+map_wcs_url <- function(coverage_id) {
+  paste0(MAP_WCS, "?service=WCS&version=2.0.1&request=GetCoverage",
+         "&coverageId=", coverage_id,
+         "&format=image%2Fgeotiff",
+         "&subset=Lat(-26.5,-11.5)&subset=Long(42.5,51.5)")
+}
+
 get_accessibility <- function() {
   f <- file.path(rdir("access"), "mdg_travel_time_cities.tif")
-  if (!file.exists(f))
-    stop("Travel-time raster missing.\n",
-         "  Download 'Accessibility to Cities 2015' from https://data.malariaatlas.org/,\n",
-         "  crop to Madagascar and save as:\n  ", f, call. = FALSE)
+  download_if_missing(map_wcs_url("Accessibility__201501_Global_Travel_Time_to_Cities"), f)
   r <- terra::rast(f); names(r) <- "travel_time"; r
 }
 
-# --- H4: night-time lights (VIIRS annual composite 2021) -------------------
+get_accessibility_health <- function() {
+  f <- file.path(rdir("access"), "mdg_travel_time_healthcare.tif")
+  download_if_missing(
+    map_wcs_url("Accessibility__202001_Global_Motorized_Travel_Time_to_Healthcare"), f)
+  r <- terra::rast(f); names(r) <- "travel_time_healthcare"; r
+}
+
+# --- H4: night-time lights, 2021 -------------------------------------------
+# The obvious source (NOAA/EOG annual VNL V2) moved behind an OAuth account, so
+# this uses the harmonized DMSP-VIIRS series of Li et al. (Sci Data 2020,
+# extended to 2024), which is openly hosted on figshare and is VIIRS-derived
+# from 2014 onward.
+#
+# Consequence worth knowing: values are harmonized DMSP-like digital numbers on
+# a 0-63 scale, NOT VIIRS radiances in nW/cm2/sr. That scale saturates over
+# bright urban cores, so nightlights here is a usable rural/peri-urban economic
+# activity gradient but must not be read as a linear intensity measure in
+# Antananarivo.
+NTL_2021_URL <- "https://ndownloader.figshare.com/files/57065294"
+
 get_nightlights <- function() {
-  f <- file.path(rdir("viirs"), "mdg_viirs_2021.tif")
-  if (!file.exists(f))
-    stop("VIIRS night-lights raster missing.\n",
-         "  Export NOAA/VIIRS/DNB/ANNUAL_V22 (band 'average', 2021) for\n",
-         "  Madagascar from Earth Engine and save as:\n  ", f, call. = FALSE)
+  f <- file.path(rdir("viirs"), "mdg_nightlights_2021.tif")
+  if (!file.exists(f)) {
+    src <- download_if_missing(
+      NTL_2021_URL,
+      file.path(rdir("viirs"), "Harmonized_DN_NTL_2021_simVIIRS_global.tif"))
+    terra::writeRaster(crop_mdg(terra::rast(src)), f, overwrite = TRUE)
+  }
   r <- terra::rast(f); names(r) <- "nightlights"; r
 }
 
@@ -113,12 +157,13 @@ get_popdens <- function() {
 
 # Continuous rasters, extracted identically for communes, clusters and grid.
 RASTER_GETTERS <- list(
-  elevation = get_elevation,
-  worldclim = get_worldclim,
-  livestock = get_livestock,
-  access    = get_accessibility,
-  viirs     = get_nightlights,
-  popdens   = get_popdens
+  elevation     = get_elevation,
+  worldclim     = get_worldclim,
+  livestock     = get_livestock,
+  access        = get_accessibility,
+  access_health = get_accessibility_health,
+  viirs         = get_nightlights,
+  popdens       = get_popdens
 )
 
 # --- H2/H3: ESA WorldCover 10 m land-cover class fractions -----------------

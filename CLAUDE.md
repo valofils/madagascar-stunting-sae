@@ -50,11 +50,18 @@ Acquisition lives in `R/02_covariates_helpers.R`, one getter per source, all cac
 | WorldClim 2.1 | temp mean/seasonality/min-cold, precip annual/seasonality | automatic |
 | ESA WorldCover 10 m | class fractions: crop, built, water, tree, grass … | automatic |
 | WorldPop | population count/density | automatic |
-| FAO GLW4 | cattle density | **manual** — see below |
-| Weiss et al. 2018 | travel time to cities | **manual** |
-| VIIRS annual composite | night-time lights | **manual** |
+| GLW4 (Harvard Dataverse) | cattle density, dasymetric, 5 arc-min | automatic |
+| Weiss et al. 2018 (MAP WCS) | travel time to cities, 2015 | automatic |
+| Weiss et al. 2020 (MAP WCS) | motorized travel time to healthcare, 2020 | automatic |
+| Li et al. harmonized DMSP–VIIRS | night-time lights, 2021 | automatic |
 
-Manual rasters stop the getter with an explicit message naming the URL and the exact target path. The pipeline runs without them; the affected covariates are simply dropped and reported in `outputs/tables/02_covariate_coverage.csv`.
+All covariate rasters now download automatically; there is no manual step. Each getter caches under `data/raw/rasters/` and is shared between `02` (commune/cluster) and `05` (prediction grid). If a source ever goes away, the getter fails loudly and the covariate is dropped and reported in `outputs/tables/02b_covariate_coverage.csv` rather than silently becoming NA.
+
+Three source substitutions worth recording, because they change how results must be read:
+
+- **Night lights.** NOAA/EOG's annual VNL V2 moved behind an OAuth account, so the pipeline uses the harmonized DMSP–VIIRS series of Li et al. (*Sci Data* 2020, extended through 2024), openly hosted on figshare and VIIRS-derived from 2014 on. Values are harmonized **DMSP-like digital numbers on a 0–63 scale, not VIIRS radiances**. That scale saturates over bright cores (Antananarivo reaches DN 56), so this is a usable rural/peri-urban activity gradient but not a linear intensity measure in the capital.
+- **Cattle.** GLW4 dasymetric (`Da`), not areal-weighted (`Aw`): `Aw` spreads district totals uniformly and would erase exactly the within-district contrast of interest. Resolution is 5 arc-minutes (~10 km), coarser than every other covariate — it resolves district-scale but not commune-scale variation, and the effect table must not over-read a fine-grained cattle signal.
+- **Travel time.** Both the 2015 travel-time-to-cities surface (as specified) and the 2020 motorized travel-time-to-healthcare surface are retained. The second is the more direct H4 measure here, since the commune is the catchment unit for basic health centres, and it is a year closer to the DHS. Distance to markets and distance to care are different exposures and need not move together.
 
 ## Methodology
 
@@ -118,25 +125,63 @@ The three boundary layers were edited at different dates and disagree. `01_bound
 4. Commune **names are not unique** (166 duplicates). Always join on `ADM3_PCODE`.
 5. The commune adjacency graph has 4 components (offshore islands). `01` adds the minimum number of artificial edges to connect it, because an ICAR/BYM2 prior on a disconnected graph is improper. Edges added are logged to `outputs/tables/01_adjacency_edges_added.csv`.
 
-## Analytical constraint established by `02b` (read before interpreting `07`)
+## Analytical constraints established by `02b` (read before interpreting `07`)
 
-Measured on the 1,701-commune covariate stack:
+Measured on the 1,701-commune covariate stack (population-weighted where relevant).
+
+### The highlands are not the poor, remote periphery — the paradox is sharper than it looks
+
+Highland (>800 m) vs lowland, weighted by under-5 population:
+
+| | Highland | Lowland | direction |
+|---|---|---|---|
+| Elevation (m) | 1,254 | 232 | |
+| Min temp, coldest month (°C) | 9.0 | 14.4 | **colder** |
+| Cropland fraction | 0.292 | 0.075 | **3.9× more cultivated** |
+| Tree cover fraction | 0.098 | 0.305 | less forest |
+| Cattle per 10 km cell | 2,184 | 1,531 | **more cattle** |
+| Travel time to cities (min) | 200 | 390 | **half the distance** |
+| Travel time to healthcare (min) | 55 | 81 | **better served** |
+| Night lights (DN) | 6.42 | 0.51 | **12× brighter** |
+| Population density (per km²) | 2,368 | 157 | denser |
+
+This is the single most important thing the covariates say, and it constrains
+the whole explanation. On every conventional deprivation axis — market access,
+health-facility access, economic activity, livestock wealth, agricultural land —
+**the highlands are better off than the lowlands**, yet they carry the higher
+stunting burden. So:
+
+- **H4 (access) cannot be the mediator in the expected direction.** Adjusting
+  for travel time should make the highland penalty *larger*, not smaller. If the
+  decomposition shows H4 "explaining" part of the gap, check the sign before
+  reporting it.
+- **H2 needs restating.** Cattle are *more* abundant in the highlands, so a
+  simple "no animals, no animal-source food" story fails. The plausible
+  mechanism is that Malagasy zebu function largely as stored wealth and ritual
+  capital rather than as a dietary source for young children — presence is not
+  consumption. Cattle density measures the wrong construct for H2 and should be
+  interpreted as a wealth proxy unless a consumption variable (DHS dietary
+  diversity, IR recode) is brought in to carry H2 properly.
+- What survives as candidate explanations is therefore **H1 (altitude/cold)** and
+  **H3 (infection load in a cold, dense, paddy-irrigated, heavily cultivated
+  landscape)** — plus diet *quality* rather than diet *quantity*.
+
+### Two collinearity limits
 
 - Elevation correlates **−0.93** with mean temperature and **−0.90** with the
   coldest-month minimum. Altitude and cold are effectively the same variable in
-  Madagascar. The decomposition in `07` therefore **cannot** separate "H1 cold
-  stress" from "altitude per se" — block A should be reported as a single
-  altitude–temperature construct, not as evidence for a thermal mechanism
-  specifically.
-- Elevation correlates only **0.52** with cropland fraction, **0.14** with
-  population density and **0.13** with built-up fraction. H2 and H3 *are*
-  separable from H1, so the interesting attribution — how much of the highland
-  penalty is diet, how much is infection load — is identifiable.
-- 40% of Madagascar's under-5 population lives above 800 m, so the highland
-  contrast is between two large groups, not a small subgroup against the rest.
+  Madagascar. `07` **cannot** separate "cold stress" from "altitude per se";
+  block A must be reported as a single altitude–temperature construct, not as
+  evidence for a thermal mechanism specifically.
+- `frac_built` and `nightlights` correlate **0.95**. They are one variable, not
+  two, and they sit in different hypothesis blocks (H3 and H4 respectively).
+  Entering both inflates the apparent contribution of whichever block is entered
+  first. Keep one per model, or report the pair jointly.
 
-Population-weighted highland (>800 m) vs lowland: coldest-month minimum 9.0 vs
-14.4 °C, cropland fraction 0.29 vs 0.075, tree cover 0.098 vs 0.305.
+Cropland (0.52), cattle (0.30), population density (0.14) and travel time to
+healthcare (−0.04) are all weakly enough related to elevation that H2, H3 and H4
+remain separable from H1. 40% of Madagascar's under-5 population lives above
+800 m, so the highland contrast is between two large groups.
 
 ## Working conventions for Claude Code
 

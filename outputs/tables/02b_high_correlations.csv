@@ -2,3 +2,4 @@
 "elevation","temp_min_cold",-0.899
 "elevation","temp_mean",-0.925
 "temp_min_cold","temp_mean",0.885
+"frac_built","nightlights",0.951

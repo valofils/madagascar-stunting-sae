@@ -7,6 +7,10 @@
 "temp_min_cold",0
 "precip_annual",0
 "precip_seasonality",0
+"cattle_density",0
+"travel_time",0
+"travel_time_healthcare",0
+"nightlights",0
 "pop_count",0
 "frac_tree",0
 "frac_shrub",0

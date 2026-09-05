@@ -32,7 +32,8 @@ cov_com <- utils::read.csv(OUT$cov_commune)
 
 EO_COVARS <- c("elevation", "ruggedness", "temp_min_cold", "temp_seasonality",
                "precip_annual", "precip_seasonality", "frac_crop", "frac_built",
-               "frac_water_perm", "cattle_density", "travel_time", "nightlights")
+               "frac_water_perm", "cattle_density", "travel_time",
+               "travel_time_healthcare", "nightlights")
 # Stand-ins for the census/household variables the WB model was limited to.
 # They are all derivable without any EO data, which is the point of the contrast.
 BASE_COVARS <- c("pop_dens", "urban_share")

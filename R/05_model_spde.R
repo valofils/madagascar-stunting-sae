@@ -60,8 +60,8 @@ msg("clusters in the model: ", nrow(dat), " | children: ", sum(dat$n),
 # ===========================================================================
 COVARS <- c("elevation", "ruggedness", "temp_min_cold", "temp_seasonality",
             "precip_annual", "precip_seasonality", "frac_crop", "frac_built",
-            "frac_water_perm", "cattle_density", "travel_time", "nightlights",
-            "urban")
+            "frac_water_perm", "cattle_density", "travel_time",
+            "travel_time_healthcare", "nightlights", "urban")
 have <- intersect(COVARS, names(dat))
 have <- have[vapply(have, function(v) {
   ok <- sum(!is.na(dat[[v]])) > 0.9 * nrow(dat) && stats::sd(dat[[v]], na.rm = TRUE) > 0

@@ -95,7 +95,7 @@ BLOCKS <- list(
                     "precip_seasonality"),
   C_infection   = c("pop_count", "frac_built", "frac_water_perm", "diarrhea_2w"),
   D_care        = c("mother_edu", "wealth_q", "mother_bmi", "mother_age1b",
-                    "birth_order", "travel_time")
+                    "birth_order", "travel_time", "travel_time_healthcare")
 )
 BLOCK_LABEL <- c(
   A_cold_stress = "H1 Altitude / cold stress",

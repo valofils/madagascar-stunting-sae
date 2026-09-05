@@ -94,9 +94,12 @@ over a buffer matching the displacement radius.
 - **Boundaries** — BNGRC/OCHA via PAM, 2025 edition: 24 regions, 120 districts,
   1,701 communes, 17,470 fokontany. Supplied as `03_Boundaries_2025.rar`.
 - **WorldPop 2020** 100 m constrained, total and under-5 — downloaded automatically.
-- **EO covariates** — SRTM, WorldClim, ESA WorldCover downloaded automatically;
-  FAO GLW4 cattle, Weiss travel time and VIIRS night lights need a manual
-  download (the scripts print the URL and target path, and run without them).
+- **EO covariates** — all downloaded automatically: SRTM elevation, WorldClim
+  bioclim, ESA WorldCover 10 m, GLW4 cattle (Harvard Dataverse), travel time to
+  cities and to healthcare (Malaria Atlas Project WCS, fetched as a Madagascar
+  subset rather than the global grid), and harmonized DMSP–VIIRS night lights
+  2021 (figshare). Night lights are DMSP-like DN on a 0–63 scale, not VIIRS
+  radiances — see the substitution notes in [CLAUDE.md](CLAUDE.md).
 
 Three of the boundary layers disagree with each other in specific, reproducible
 ways — an incomplete 2021 region split, inconsistent Antananarivo arrondissement
