@@ -571,7 +571,7 @@ ul.tight li::marker { color: var(--laterite); }
       <li><strong>Land cover enters the surface at commune resolution.</strong> Computing 10&nbsp;m WorldCover fractions for every grid cell is not affordable, so within-commune variation in cropland and built-up area is left to the spatial field.</li>
       <li><strong>45 communes are smaller than one 5&nbsp;km grid cell</strong> and take the nearest cell's posterior draws. At a 188&nbsp;km range the surface is effectively constant over those distances, but their estimates are borrowed rather than computed.</li>
       <li><strong>Region Ambatosoa cannot be reported separately.</strong> It exists in the 2025 adm1 layer but has no districts or communes in adm2/adm3; its territory sits under Analanjirofo. No population is lost.</li>
-      <li><strong>The IHME external comparison has not been run</strong> &mdash; the Local Burden of Disease raster is not redistributable and is not present locally.</li>
+      <li><strong>The IHME external comparison has not been run.</strong> The Local Burden of Disease estimates sit behind a free account and the IHME non-commercial user agreement, so no external check against an independent published surface has been performed. The comparison is implemented and will run once the file is supplied; until then, agreement with the design-based survey estimates is the only validation of level, and spatial block cross-validation the only validation of pattern.</li>
     </ul>
   </div>
 </section>
