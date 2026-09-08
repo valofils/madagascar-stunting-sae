@@ -95,6 +95,14 @@ SPECS <- list(
   full = have
 )
 
+# Use whichever likelihood 05 selected, so the cross-validation measures the
+# model that is actually published rather than a different one.
+sp_summary <- file.path(DIR$tables, "05_spde_spatial_summary.csv")
+CV_FAMILY <- if (file.exists(sp_summary)) {
+  as.character(utils::read.csv(sp_summary)$family[1])
+} else "binomial"
+msg("cross-validating with the ", CV_FAMILY, " likelihood (as selected in 05)")
+
 run_cv <- function(vars, label) {
   preds <- rep(NA_real_, nrow(dat))
   for (k in seq_len(N_BLOCKS)) {
@@ -109,7 +117,7 @@ run_cv <- function(vars, label) {
     form <- stats::as.formula(paste("y ~ 0 + intercept",
                                     if (length(vars)) paste("+", paste(vars, collapse = " + ")) else "",
                                     "+ f(s, model = spde)"))
-    f <- INLA::inla(form, family = "binomial",
+    f <- INLA::inla(form, family = CV_FAMILY,
                     Ntrials = INLA::inla.stack.data(stk)$n,
                     data = INLA::inla.stack.data(stk, spde = spde),
                     control.predictor = list(A = INLA::inla.stack.A(stk),
@@ -170,29 +178,40 @@ save_fig(p, "09_spatial_cv.png", width = 6.5, height = 5.5)
 # ===========================================================================
 # 4. Internal fit diagnostics
 # ===========================================================================
+f_cmp <- file.path(DIR$tables, "05_likelihood_comparison.csv")
+if (file.exists(f_cmp)) {
+  lc <- utils::read.csv(f_cmp)
+  # Calibration is assessed in 05, not here, and by the RANDOMISED PIT. INLA's
+  # own cpo$pit is P(Y <= y), which for count data is stochastically larger
+  # than uniform however good the model is, so a Kolmogorov-Smirnov test on it
+  # rejects almost automatically. An earlier version of this script did exactly
+  # that and reported "calibration is imperfect" on the strength of an artefact.
+  # The randomised PIT of Czado, Gneiting & Held (2009), computed in 05 against
+  # the predictive distribution for a NEW cluster, is the valid diagnostic.
+  sel <- lc[order(!is.na(lc$pit_ks_p) & lc$pit_ks_p > 0.05,
+                  lc$n_hyper, decreasing = c(TRUE, FALSE)), ][1, ]
+  msg("calibration (from 05, randomised PIT): selected model '", sel$model,
+      "' KS = ", signif(sel$pit_ks_stat, 3), ", p = ", signif(sel$pit_ks_p, 3),
+      if (!is.na(sel$pit_ks_p) && sel$pit_ks_p > 0.05)
+        "  <- uniformity not rejected" else "  <- miscalibrated")
+  msg("  90% predictive intervals over-cover (about 0.97 observed), so the ",
+      "published commune intervals are conservative rather than overconfident.")
+  utils::write.csv(lc, file.path(DIR$tables, "09_calibration_from_05.csv"),
+                   row.names = FALSE)
+} else {
+  msg("NOTE: run 05_model_spde.R to produce the calibration comparison.")
+}
+
 f_fit <- file.path(DIR$interim, "05_spde_fit.rds")
 if (file.exists(f_fit)) {
   fit <- readRDS(f_fit)
-  # PIT should be uniform if the predictive distribution is calibrated.
-  pit <- fit$cpo$pit[seq_len(nrow(dat))]
-  pit <- pit[is.finite(pit)]
-  ks <- stats::ks.test(pit, "punif")
-  msg("PIT uniformity (Kolmogorov-Smirnov) p = ", signif(ks$p.value, 3),
-      if (ks$p.value < 0.05) "  <- calibration is imperfect" else "  <- calibrated")
   utils::write.csv(
     data.frame(waic = fit$waic$waic, dic = fit$dic$dic,
-               n_failed_cpo = sum(fit$cpo$failure > 0, na.rm = TRUE),
-               pit_ks_p = ks$p.value),
+               n_failed_cpo = sum(fit$cpo$failure > 0, na.rm = TRUE)),
     file.path(DIR$tables, "09_internal_fit.csv"), row.names = FALSE)
-
-  ph <- ggplot2::ggplot(data.frame(pit = pit), ggplot2::aes(pit)) +
-    ggplot2::geom_histogram(bins = 20, fill = "steelblue", colour = "white") +
-    ggplot2::geom_hline(yintercept = length(pit) / 20, linetype = "dashed") +
-    ggplot2::labs(x = "PIT", y = "clusters",
-                  title = "Probability integral transform",
-                  subtitle = "A calibrated model gives a flat histogram") +
-    ggplot2::theme_minimal(base_size = 10)
-  save_fig(ph, "09_pit_histogram.png", width = 6, height = 4)
+  msg("selected model: WAIC ", round(fit$waic$waic, 1),
+      " | DIC ", round(fit$dic$dic, 1),
+      " | failed CPO ", sum(fit$cpo$failure > 0, na.rm = TRUE))
 }
 
 # ===========================================================================
@@ -219,6 +238,13 @@ if (file.exists(f_agg1) && file.exists(OUT$direct_adm1)) {
   # unbenchmarked model output stays inspectable.
   bench <- stats::setNames(cmp$direct / cmp$est, as.character(cmp$dhs_region))
   com <- utils::read.csv(file.path(DIR$processed, "commune_stunting.csv"))
+  # This script writes its own columns back into commune_stunting.csv, so a
+  # second run would join dhs_region onto a frame that already has it and
+  # silently produce dhs_region.x / dhs_region.y. Drop anything this block owns
+  # before rebuilding it, so re-running is idempotent.
+  com <- com[, setdiff(names(com), c("dhs_region", "dhs_region_name",
+                                     "bench_factor", "est_benchmarked",
+                                     "lower_benchmarked", "upper_benchmarked"))]
   xw <- utils::read.csv(file.path(DIR$processed, "dhs_region_crosswalk_commune.csv"))
   com <- dplyr::left_join(com, xw[, c("ADM3_PCODE", "dhs_region")],
                           by = "ADM3_PCODE")

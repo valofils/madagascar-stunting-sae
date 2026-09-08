@@ -275,10 +275,56 @@ extra parameters cost precision. Their value here is explanatory - they say
 improve commune-level prediction accuracy would be unsupported by this test.
 
 Benchmarking is good: the model agrees with the design-based direct estimate in
-**22 of 23 DHS regions**, mean absolute difference 2.51 points, benchmark factors
-0.786-1.206 (median 0.974). PIT calibration is imperfect (KS p = 1.3e-9),
-consistent with mild overdispersion; the binomial likelihood plus a single
-cluster nugget slightly understates cluster-level heterogeneity.
+**22 of 23 DHS regions**, mean absolute difference 2.57 points, benchmark factors
+0.784-1.201 (median 0.967).
+
+### Likelihood choice and calibration (corrected)
+
+An earlier version of this file reported "PIT calibration is imperfect
+(KS p = 1.3e-9), consistent with mild overdispersion". **That was wrong, twice
+over**, and the record is corrected here rather than quietly edited:
+
+1. The test was invalid. INLA's `cpo$pit` is P(Y <= y), which for COUNT data is
+   stochastically larger than uniform however good the model is. A
+   Kolmogorov-Smirnov test on it rejects almost automatically - R's "ties should
+   not be present" warning was saying exactly this.
+2. The predictive distribution was the wrong one. It conditioned on each
+   cluster's own fitted nugget, making the check in-sample.
+
+Redone with the randomised PIT of Czado, Gneiting & Held (2009), against the
+predictive distribution for a NEW cluster (`outputs/tables/05_likelihood_comparison.csv`,
+figure `05_pit_by_likelihood.png`):
+
+| model | WAIC | log CPO | Pearson disp. | PIT KS | PIT p | 90% coverage |
+|---|---|---|---|---|---|---|
+| binomial | 2323.8 | -1171.2 | 0.812 | 0.0676 | 0.005 | 0.986 |
+| binomial + nugget | **2316.9** | -1170.1 | 0.744 | 0.0535 | 0.049 | 0.974 |
+| **betabinomial** | 2337.9 | -1169.5 | 0.877 | 0.0372 | **0.333** | 0.974 |
+| betabinomial + nugget | 2336.9 | **-1169.3** | 0.845 | **0.0357** | 0.382 | 0.975 |
+
+The diagnosis reverses: Pearson dispersion is **below** 1 everywhere, so the
+models were never under-dispersed. **The beta-binomial does fix the
+calibration** - uniformity cannot be rejected (p = 0.33) where binomial+nugget
+is borderline (0.049) and plain binomial is rejected (0.005).
+
+`05` therefore selects on **calibration, not WAIC**, and says so in the log.
+The justification: this model exists to give credible intervals at locations
+the survey never visited, so what matters is whether the predictive
+distribution for a new cluster is honest - which the randomised PIT measures
+and WAIC, an in-sample predictive density, does not. Leave-one-out log CPO
+agrees with the calibration ranking; only WAIC/DIC dissent, by ~20 units.
+
+Parsimony breaks the remaining tie. `betabinomial_nugget` estimates its nugget
+precision at ~2000 (SD ~0.02) with a credible interval spanning three orders of
+magnitude: the nugget is **unidentified** once the overdispersion parameter is
+present, because both model the same thing. Plain `betabinomial` is selected.
+Its intra-cluster correlation is rho = 0.029.
+
+**Residual issue, not solved by any specification.** All four over-cover: about
+97% of observations fall inside nominal 90% predictive intervals, and every PIT
+histogram is hump-shaped. The published commune intervals are therefore
+**conservative rather than overconfident** - the safer direction for a targeting
+product, but they should not be described as exact.
 
 ### Targeting
 

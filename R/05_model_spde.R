@@ -6,14 +6,17 @@
 # approximation of Lindgren, Rue & Lindstrom (2011) and fitted by INLA.
 #
 # Model:
-#   y_c ~ Binomial(n_c, p_c)                     y_c = stunted children in cluster c
-#   logit(p_c) = alpha + x_c' beta + S(s_c) + e_c
+#   y_c ~ Binomial or BetaBinomial(n_c, p_c)     y_c = stunted children in cluster c
+#   logit(p_c) = alpha + x_c' beta + S(s_c) [+ e_c]
 #   S(.)  ~ GP with Matern covariance (SPDE), nu = 1
-#   e_c   ~ N(0, sigma_e^2)                      cluster-level nugget
+#   e_c   ~ N(0, sigma_e^2)                      optional cluster-level nugget
 #
-# The nugget matters: without it the spatial field absorbs cluster-level
-# idiosyncrasy and the effective range collapses, which in turn overstates the
-# precision of the predicted surface.
+# Children within a DHS cluster share a village, a water source and a food
+# system, so their outcomes are correlated and a plain binomial understates the
+# variance. Three specifications - binomial with a nugget, beta-binomial, and
+# beta-binomial with a nugget - are fitted and compared on WAIC, CPO, Pearson
+# dispersion and PIT, and the surface is built from whichever wins. See
+# outputs/tables/05_likelihood_comparison.csv.
 #
 # The fitted field is then projected onto a prediction grid covering
 # Madagascar, giving the 5 km surface that 08_aggregate.R averages up to
@@ -239,23 +242,260 @@ stk_est <- INLA::inla.stack(
   A = list(A_est, 1),
   effects = list(idx, cbind(fixed_df(dat), nugget = seq_len(nrow(dat)))))
 
-form <- stats::as.formula(paste(
-  "y ~ 0 + intercept +", paste(have, collapse = " + "),
-  "+ f(s, model = spde)",
-  "+ f(nugget, model = 'iid', hyper = list(prec = list(prior = 'pc.prec',",
-  "                                                    param = c(1, 0.01))))"))
+# ---- Candidate likelihoods -----------------------------------------------
+# The binomial + cluster-nugget specification left the PIT histogram clearly
+# non-uniform (KS p = 1.3e-9), which is the signature of extra-binomial
+# variation between clusters: children within a DHS cluster share a village,
+# a water source and a food system, so their outcomes are correlated and the
+# binomial variance n*p*(1-p) is too small.
+#
+# Two ways to absorb that, and they are not the same thing:
+#   - an iid nugget on the LOGIT scale, which lets each cluster's underlying
+#     risk depart from the surface, or
+#   - a beta-binomial likelihood, which models the intra-cluster correlation
+#     directly: Var(y) = n p (1-p) [1 + (n-1) rho].
+# The second is the better-matched device, because the overdispersion here is a
+# property of how children cluster within a village, not of the risk surface.
+# Carrying both is close to unidentifiable, so all three are fitted and compared
+# rather than assumed.
+SPECS <- list(
+  binomial = list(
+    family = "binomial",
+    form = stats::as.formula(paste(
+      "y ~ 0 + intercept +", paste(have, collapse = " + "),
+      "+ f(s, model = spde)"))),
+  binomial_nugget = list(
+    family = "binomial",
+    form = stats::as.formula(paste(
+      "y ~ 0 + intercept +", paste(have, collapse = " + "),
+      "+ f(s, model = spde)",
+      "+ f(nugget, model = 'iid', hyper = list(prec = list(prior = 'pc.prec',",
+      "                                                    param = c(1, 0.01))))"))),
+  betabinomial = list(
+    family = "betabinomial",
+    form = stats::as.formula(paste(
+      "y ~ 0 + intercept +", paste(have, collapse = " + "),
+      "+ f(s, model = spde)"))),
+  betabinomial_nugget = list(
+    family = "betabinomial",
+    form = stats::as.formula(paste(
+      "y ~ 0 + intercept +", paste(have, collapse = " + "),
+      "+ f(s, model = spde)",
+      "+ f(nugget, model = 'iid', hyper = list(prec = list(prior = 'pc.prec',",
+      "                                                    param = c(1, 0.01))))")))
+)
 
-msg("fitting INLA SPDE model on ", nrow(dat), " clusters")
-t0 <- Sys.time()
-fit <- INLA::inla(
-  form, family = "binomial", Ntrials = INLA::inla.stack.data(stk_est)$n,
-  data = INLA::inla.stack.data(stk_est, spde = spde),
-  control.predictor = list(A = INLA::inla.stack.A(stk_est), compute = TRUE, link = 1),
-  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE),
-  control.inla = list(int.strategy = "eb"),
-  verbose = FALSE)
-msg("INLA finished in ", round(difftime(Sys.time(), t0, units = "mins"), 1), " min")
+stk_dat <- INLA::inla.stack.data(stk_est, spde = spde)
+Ntr <- stk_dat$n
+idx_est <- INLA::inla.stack.index(stk_est, "est")$data
 
+fit_spec <- function(sp, label) {
+  msg("fitting [", label, "] (", sp$family, ")")
+  t0 <- Sys.time()
+  f <- INLA::inla(
+    sp$form, family = sp$family, Ntrials = Ntr, data = stk_dat,
+    control.predictor = list(A = INLA::inla.stack.A(stk_est), compute = TRUE, link = 1),
+    control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE),
+    control.inla = list(int.strategy = "eb"),
+    verbose = FALSE)
+  msg("  done in ", round(difftime(Sys.time(), t0, units = "secs")), "s")
+  f
+}
+
+fits <- lapply(names(SPECS), function(k) fit_spec(SPECS[[k]], k))
+names(fits) <- names(SPECS)
+
+# ---- Calibration diagnostics ---------------------------------------------
+# Pearson dispersion: sum of squared standardised residuals over the number of
+# clusters. About 1 means the likelihood's variance matches the data; above 1
+# means the model still understates cluster-level variability.
+#
+# The model-implied variance differs by family:
+#   binomial      V = n p (1 - p)
+#   betabinomial  V = n p (1 - p) [1 + (n - 1) rho]
+dispersion_of <- function(f, family) {
+  p <- f$summary.fitted.values[idx_est, "mean"]
+  V <- dat$n * p * (1 - p)
+  rho <- NA_real_
+  if (family == "betabinomial") {
+    hp <- f$summary.hyperpar
+    r <- grep("rho|overdispersion", rownames(hp), ignore.case = TRUE)
+    if (length(r) > 0) {
+      rho <- hp[r[1], "mean"]
+      V <- V * (1 + (dat$n - 1) * rho)
+    }
+  }
+  list(dispersion = sum((dat$y - dat$n * p)^2 / V) / nrow(dat), rho = rho)
+}
+
+# ---- Calibration: RANDOMISED PIT ------------------------------------------
+# INLA reports pit = P(Y <= y_obs). For CONTINUOUS data that is uniform under a
+# correct model, but these are counts, and for discrete data P(Y <= y) is
+# stochastically larger than uniform no matter how good the model is. Testing it
+# with a Kolmogorov-Smirnov test is therefore invalid - which is exactly what
+# R's "ties should not be present" warning was saying. An earlier version of
+# this pipeline read that artefact as evidence of miscalibration; it is not.
+#
+# The correct device for discrete outcomes is the randomised PIT of Czado,
+# Gneiting & Held (2009):
+#
+#     u_i = F_i(y_i - 1) + v_i * [ F_i(y_i) - F_i(y_i - 1) ],   v_i ~ U(0, 1)
+#
+# which IS uniform under a correctly specified model. F_i is estimated here by
+# simulating from the posterior predictive distribution, so it also propagates
+# parameter uncertainty rather than conditioning on point estimates.
+N_PPC <- 300
+
+# A further subtlety, and it changes the answer. The predictive distribution
+# used for calibration must be the one for a NEW cluster at that location, not
+# the one conditioned on the cluster's own fitted nugget. INLA's "Predictor"
+# rows contain the latter: the nugget has been fitted to that very cluster's
+# data, so replicating from it reproduces the observations almost too well and
+# the check becomes in-sample. That is precisely how a too-wide predictive
+# distribution can coexist with a Pearson dispersion below 1.
+#
+# So the linear predictor is rebuilt from its components -
+#     eta = x' beta + A s   ( + a FRESH nugget draw where the spec has one )
+# - which is exactly how the surface is used in 08 to predict unsampled
+# communes. This makes the four specifications comparable on equal terms.
+randomised_pit <- function(f, family, has_nugget) {
+  smp <- INLA::inla.posterior.sample(N_PPC, f, seed = 20210)
+  rn <- rownames(smp[[1]]$latent)
+  s_rows <- grep("^s:", rn)
+  fx_rows <- vapply(c("intercept", have),
+                    function(v) which(rn == paste0(v, ":1")), integer(1))
+  Xe <- as.matrix(cbind(intercept = 1, dat[, have, drop = FALSE]))
+  n_i <- dat$n; y_i <- dat$y
+
+  yrep <- vapply(smp, function(z) {
+    lat <- z$latent[, 1]
+    eta <- as.numeric(Xe %*% lat[fx_rows]) + as.numeric(A_est %*% lat[s_rows])
+    hp <- z$hyperpar
+    if (has_nugget) {
+      pr <- grep("nugget", names(hp), ignore.case = TRUE)
+      if (length(pr) > 0) {
+        sd_e <- 1 / sqrt(as.numeric(hp[pr[1]]))
+        eta <- eta + stats::rnorm(length(eta), 0, sd_e)
+      }
+    }
+    p <- stats::plogis(eta)
+    if (family == "betabinomial") {
+      # INLA parameterises the beta-binomial by rho, the intra-cluster
+      # correlation, with rho = 1 / (a + b + 1). Recover (a, b) from (p, rho).
+      r <- grep("rho|overdispersion", names(hp), ignore.case = TRUE)
+      rho <- if (length(r) > 0) as.numeric(hp[r[1]]) else 0
+      rho <- min(max(rho, 1e-8), 1 - 1e-8)
+      ab <- 1 / rho - 1
+      stats::rbinom(length(p), n_i, stats::rbeta(length(p), p * ab, (1 - p) * ab))
+    } else {
+      stats::rbinom(length(p), n_i, p)
+    }
+  }, numeric(nrow(dat)))
+
+  F_lt <- rowMeans(yrep < y_i)     # F(y-1)
+  F_eq <- rowMeans(yrep == y_i)    # P(Y = y)
+  u <- F_lt + stats::runif(length(y_i)) * F_eq
+  kt <- suppressWarnings(stats::ks.test(u, "punif"))
+  # Coverage of the 90% predictive interval: another read on the same question,
+  # in units anyone can interpret. Well below 0.90 means too narrow, well above
+  # means too wide.
+  lo <- apply(yrep, 1, stats::quantile, 0.05)
+  hi <- apply(yrep, 1, stats::quantile, 0.95)
+  list(ks = unname(kt$statistic), p = kt$p.value, u = u,
+       cover90 = mean(y_i >= lo & y_i <= hi))
+}
+
+msg("computing randomised PIT by posterior predictive simulation")
+rp <- lapply(names(fits), function(k)
+  randomised_pit(fits[[k]], SPECS[[k]]$family, grepl("nugget", k)))
+names(rp) <- names(fits)
+saveRDS(rp, file.path(DIR$interim, "05_randomised_pit.rds"))
+
+cmp <- do.call(rbind, lapply(names(fits), function(k) {
+  f <- fits[[k]]
+  d <- dispersion_of(f, SPECS[[k]]$family)
+  data.frame(
+    model = k,
+    family = SPECS[[k]]$family,
+    waic = f$waic$waic,
+    dic = f$dic$dic,
+    log_cpo = sum(log(f$cpo$cpo[idx_est]), na.rm = TRUE),
+    failed_cpo = sum(f$cpo$failure[idx_est] > 0, na.rm = TRUE),
+    pearson_dispersion = d$dispersion,
+    rho = d$rho,
+    pit_ks_stat = rp[[k]]$ks,
+    pit_ks_p = rp[[k]]$p,
+    cover90 = rp[[k]]$cover90,
+    row.names = NULL)
+}))
+cmp$n_hyper <- vapply(names(fits),
+                      function(k) nrow(fits[[k]]$summary.hyperpar), integer(1))
+cmp <- cmp[order(cmp$waic), ]
+utils::write.csv(cmp, file.path(DIR$tables, "05_likelihood_comparison.csv"),
+                 row.names = FALSE)
+msg("likelihood comparison:")
+print(cmp, row.names = FALSE, digits = 4)
+
+# ---- Selection rule --------------------------------------------------------
+# NOT lowest WAIC. The criteria disagree, and the disagreement is substantive
+# enough to state rather than paper over:
+#
+#   WAIC and DIC prefer binomial + nugget, by about 20 units.
+#   Leave-one-out log CPO prefers the beta-binomial, marginally.
+#   Randomised PIT decisively prefers the beta-binomial: uniformity cannot be
+#     rejected (p ~ 0.33) whereas binomial + nugget is rejected (p ~ 0.05) and
+#     plain binomial firmly so (p ~ 0.005).
+#
+# What this model is FOR settles it. The deliverable is commune prevalence with
+# credible intervals at locations the survey never visited, so the quantity that
+# matters is whether the predictive distribution for a new cluster is honest -
+# which is what the randomised PIT measures and what WAIC, an in-sample
+# predictive density, does not. Calibration is therefore the binding criterion,
+# with parsimony breaking ties: the log CPO gap between the two beta-binomial
+# variants is under 0.15 in total log density across 647 clusters, i.e. nothing,
+# and betabinomial_nugget's nugget precision is estimated at ~2000 with a
+# credible interval spanning three orders of magnitude - it is unidentified,
+# because the nugget and the overdispersion parameter model the same thing.
+calibrated <- cmp[!is.na(cmp$pit_ks_p) & cmp$pit_ks_p > 0.05, ]
+if (nrow(calibrated) > 0) {
+  calibrated <- calibrated[order(calibrated$n_hyper, -calibrated$log_cpo), ]
+  best <- calibrated$model[1]
+  msg("selected likelihood: ", best,
+      " (calibrated: PIT p = ", signif(calibrated$pit_ks_p[1], 3),
+      "; most parsimonious among calibrated specs)")
+  msg("  note: WAIC would have chosen ", cmp$model[1],
+      " (WAIC ", round(cmp$waic[1], 1), " vs ",
+      round(calibrated$waic[1], 1), ") - see the comment above for why it does not.")
+} else {
+  best <- cmp$model[1]
+  msg("selected likelihood: ", best,
+      " (no specification passed the calibration check; fell back to WAIC)")
+}
+fit <- fits[[best]]
+BEST_FAMILY <- SPECS[[best]]$family
+HAS_NUGGET <- grepl("nugget", best)
+
+# Diagnostic figure: the PIT histogram is the picture behind the KS numbers.
+# A calibrated model gives a flat histogram; a hump means the predictive
+# distribution is too wide, a U-shape means too narrow.
+pit_df <- do.call(rbind, lapply(names(rp), function(k) {
+  if (is.null(rp[[k]]$u)) return(NULL)
+  data.frame(model = k, u = rp[[k]]$u)
+}))
+if (!is.null(pit_df)) {
+  p_pit <- ggplot2::ggplot(pit_df, ggplot2::aes(u)) +
+    ggplot2::geom_histogram(bins = 20, fill = "steelblue", colour = "white") +
+    ggplot2::geom_hline(yintercept = nrow(dat) / 20, linetype = "dashed") +
+    ggplot2::facet_wrap(~model) +
+    ggplot2::labs(x = "randomised PIT", y = "clusters",
+                  title = "Calibration by likelihood",
+                  subtitle = paste("Dashed line = uniform. Predictive distribution",
+                                   "for a NEW cluster, not the fitted one.")) +
+    ggplot2::theme_minimal(base_size = 9)
+  save_fig(p_pit, "05_pit_by_likelihood.png", width = 8, height = 6)
+}
+
+saveRDS(fits, file.path(DIR$interim, "05_spde_fits_all.rds"))
 saveRDS(fit, file.path(DIR$interim, "05_spde_fit.rds"))
 
 # ===========================================================================
@@ -271,7 +511,8 @@ rng <- INLA::inla.emarginal(function(x) x, sp$marginals.range.nominal[[1]])
 sig <- INLA::inla.emarginal(function(x) x, sp$marginals.variance.nominal[[1]])
 msg("Matern practical range: ", round(rng, 1), " km | field sd: ",
     round(sqrt(sig), 3), " (logit scale)")
-utils::write.csv(data.frame(range_km = rng, field_sd = sqrt(sig),
+utils::write.csv(data.frame(family = BEST_FAMILY, has_nugget = HAS_NUGGET,
+                            range_km = rng, field_sd = sqrt(sig),
                             waic = fit$waic$waic, dic = fit$dic$dic),
                  file.path(DIR$tables, "05_spde_spatial_summary.csv"),
                  row.names = FALSE)
