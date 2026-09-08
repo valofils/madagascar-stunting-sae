@@ -48,3 +48,7 @@ Thumbs.db
 # ---- Keep the figures and tables: they are the deliverable ----------------
 !outputs/figures/*.png
 !outputs/tables/*.csv
+
+# ---- Personal / administrative documents (never publish) ------------------
+data/*.pdf
+AuthLetter*.pdf
