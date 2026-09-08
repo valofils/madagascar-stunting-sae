@@ -84,8 +84,147 @@ child <- dplyr::tibble(
   mother_age1b = pick(kr, "v212"),
   birth_order  = pick(kr, "bord"),
   bcg          = pick(kr, "h2"),
-  diarrhea_2w  = pick(kr, "h11")
+  diarrhea_2w  = pick(kr, "h11"),
+  fever_2w     = pick(kr, "h22"),
+  ari_2w       = pick(kr, "h31"),
+  breastfeeding = pick(kr, "m4"),
+  water_source = pick(kr, "v113"),
+  toilet_type  = pick(kr, "v116"),
+  toilet_share = pick(kr, "v160")
 )
+
+# ===========================================================================
+# 2b. Constructed exposures for H2 (diet quality) and H3 (infection load)
+# ===========================================================================
+# The covariate stack cannot carry either hypothesis on its own. 02b showed the
+# highlands have MORE cattle and BETTER access than the lowlands, so livestock
+# density is functioning as a wealth proxy, not a diet measure; H2 has to be
+# tested with what children actually ate. Likewise H3 needs a direct infection
+# signal, not only settlement density.
+#
+# The v414 series is the most country-customised part of the DHS recode, so the
+# mapping below was VERIFIED against the variable labels in MDKR81FL.DTA on
+# 2026-09-08 rather than assumed from the generic recode manual. All eight WHO
+# groups resolve, and the country-specific slots (v414a-d, v414t, v414u, v414w)
+# are empty in Madagascar and correctly unused. Confirmed codings:
+#   m4 == 95 is "still breastfeeding" (the value labels also carry 93/94/96/97/98)
+#   v414* are 0/1/8 with 8 = "don't know", which is treated as "not given",
+#     the DHS convention.
+# One genuine limitation: Madagascar has "other fruits" (v414l) but no separate
+# "other vegetables" item, so the eighth WHO group is fruit-only and MDD may be
+# very slightly understated relative to surveys that carry both.
+#
+# The mapping is still written as CANDIDATE lists and the script still prints
+# which variables it resolved, so a different survey or a re-release cannot
+# silently change the definition underneath the results.
+
+# WHO 2021 minimum dietary diversity, 8 food groups, children 6-23 months.
+FOOD_GROUPS <- list(
+  breastmilk        = character(0),                 # handled separately via m4
+  grains_roots      = c("v414e", "v414f"),
+  legumes_nuts      = c("v414o"),
+  dairy             = c("v411", "v411a", "v414p", "v414v"),
+  flesh_foods       = c("v414h", "v414m", "v414n"),
+  eggs              = c("v414g"),
+  vitA_fruit_veg    = c("v414i", "v414j", "v414k"),
+  other_fruit_veg   = c("v414l")
+)
+
+# DHS codes these as 0/1 with 8 = "don't know"; anything not a clean 1 is
+# treated as "not given" rather than missing, which is the DHS convention.
+ate <- function(df, vars) {
+  vars <- vars[vars %in% names(df)]
+  if (length(vars) == 0) return(list(value = rep(NA_integer_, nrow(df)), used = character(0)))
+  m <- vapply(vars, function(v) as.integer(as.numeric(df[[v]]) == 1), integer(nrow(df)))
+  list(value = as.integer(rowSums(m, na.rm = TRUE) > 0), used = vars)
+}
+
+fg_found <- list()
+fg_mat <- matrix(0L, nrow = nrow(kr), ncol = 0)
+for (g in names(FOOD_GROUPS)) {
+  if (g == "breastmilk") {
+    # m4 == 95 is "still breastfeeding" in the standard recode.
+    val <- as.integer(pick(kr, "m4") == 95)
+    val[is.na(val)] <- 0L
+    fg_found[[g]] <- "m4 (==95)"
+  } else {
+    r <- ate(kr, FOOD_GROUPS[[g]])
+    val <- r$value
+    fg_found[[g]] <- if (length(r$used)) paste(r$used, collapse = "+") else "NONE FOUND"
+    if (all(is.na(val))) val <- rep(NA_integer_, nrow(kr))
+  }
+  fg_mat <- cbind(fg_mat, val)
+  colnames(fg_mat)[ncol(fg_mat)] <- g
+}
+
+n_missing_groups <- sum(vapply(fg_found, function(x) identical(x, "NONE FOUND"), logical(1)))
+msg("dietary diversity food groups resolved:")
+for (g in names(fg_found)) msg("    ", g, ": ", fg_found[[g]])
+if (n_missing_groups > 0)
+  msg("WARNING: ", n_missing_groups, " of 8 food groups had no matching variable. ",
+      "MDD is NOT comparable to the published indicator - check the EDSMD-V ",
+      "country-specific recode documentation before using it.")
+
+child$diet_diversity <- as.integer(rowSums(fg_mat, na.rm = TRUE))
+# MDD is defined only for children 6-23 months; outside that window the food
+# questions are not asked consistently and the score is meaningless.
+in_window <- child$age_month >= 6 & child$age_month <= 23
+child$diet_diversity[!in_window | is.na(in_window)] <- NA_integer_
+child$mdd <- as.integer(child$diet_diversity >= 5)   # WHO 2021 threshold: 5 of 8
+
+utils::write.csv(
+  data.frame(food_group = names(fg_found), variables_used = unlist(fg_found)),
+  file.path(DIR$tables, "03_dietary_diversity_mapping.csv"), row.names = FALSE)
+
+# ---- WASH (H3) ------------------------------------------------------------
+# JMP (WHO/UNICEF Joint Monitoring Programme) service-ladder definitions, with
+# the code lists checked against the v113/v116 value labels in this file on
+# 2026-09-08. Codes 96 ("other") and 97 ("not a dejure resident") are NA, not 0.
+#
+# IMPROVED_WATER: piped (11-14, including piped to a neighbour), tube well or
+#   borehole (21), protected dug well (31), protected spring (41), rainwater
+#   (51), and delivered water - tanker (61), cart (62), bottled (71) - which the
+#   JMP has counted as improved since 2017.
+IMPROVED_WATER <- c(11, 12, 13, 14, 21, 31, 41, 51, 61, 62, 71)
+# IMPROVED_TOILET: flush to sewer (11), septic tank (12) or pit (13); VIP (21);
+#   pit latrine with slab (22); composting (41). Deliberately EXCLUDES 14
+#   ("flush to somewhere else"), which the JMP classifies as unimproved, and 15
+#   ("flush, don't know where"), which is ambiguous; both are negligible here
+#   (9 and 6 records).
+IMPROVED_TOILET <- c(11, 12, 13, 21, 22, 41)
+
+child$improved_water <- as.integer(child$water_source %in% IMPROVED_WATER)
+child$improved_water[is.na(child$water_source) | child$water_source >= 96] <- NA_integer_
+
+# Two DISTINCT indicators, kept separate because they answer different
+# questions and conflating them is the usual way this gets misreported:
+#   improved_sanitation - the facility type is improved, sharing ignored
+#   basic_sanitation    - improved AND not shared with other households, which
+#                         is the JMP "at least basic" definition
+# For H3 (faecal-oral exposure) the shared/unshared distinction matters, so
+# basic_sanitation is the one the infection block uses.
+child$improved_sanitation <- as.integer(child$toilet_type %in% IMPROVED_TOILET)
+child$improved_sanitation[is.na(child$toilet_type) | child$toilet_type >= 96] <- NA_integer_
+child$basic_sanitation <- as.integer(child$improved_sanitation == 1 &
+                                       (is.na(child$toilet_share) | child$toilet_share != 1))
+child$basic_sanitation[is.na(child$improved_sanitation)] <- NA_integer_
+child$open_defecation <- as.integer(child$toilet_type %in% c(30, 31))
+child$open_defecation[is.na(child$toilet_type) | child$toilet_type >= 96] <- NA_integer_
+
+for (v in c("water_source", "toilet_type")) {
+  tab <- as.data.frame(table(child[[v]], useNA = "ifany"))
+  names(tab) <- c("code", "n")
+  utils::write.csv(tab, file.path(DIR$tables, paste0("03_codes_", v, ".csv")),
+                   row.names = FALSE)
+}
+msg("WASH (unweighted, children's households): improved water ",
+    round(100 * mean(child$improved_water, na.rm = TRUE), 1),
+    "% | improved sanitation ",
+    round(100 * mean(child$improved_sanitation, na.rm = TRUE), 1),
+    "% | basic sanitation ",
+    round(100 * mean(child$basic_sanitation, na.rm = TRUE), 1),
+    "% | open defecation ",
+    round(100 * mean(child$open_defecation, na.rm = TRUE), 1), "%")
 
 # HAZ is stored multiplied by 100. Values 9996-9999 are DHS flags
 # (996 height out of range, 997 inconsistent, 998 not measured, 999 missing),
@@ -144,7 +283,12 @@ msg("wrote ", basename(OUT$dhs_child))
 des <- srvyr::as_survey_design(child, ids = cluster, strata = strata,
                                weights = wt, nest = TRUE)
 
-deff_national <- survey::svymean(~stunted, des, deff = TRUE)
+# DHS weights (v005/1e6) are normalised to sum to the SAMPLE size, not to the
+# population, so deff = TRUE cannot form the simple-random-sample comparison and
+# returns NA with a "sample size greater than population size" warning.
+# deff = "replace" computes the design effect from the sample itself, which is
+# the appropriate choice for self-weighting-within-stratum survey weights.
+deff_national <- survey::svymean(~stunted, des, deff = "replace")
 msg("national stunting: ", round(100 * coef(deff_national), 1), "% (SE ",
     round(100 * survey::SE(deff_national), 2), ", DEFF ",
     round(survey::deff(deff_national), 2), ")")
@@ -182,29 +326,45 @@ direct_by <- function(design, area_var) {
     )
 }
 
-## --- Region (DHS domain: the design supports these directly) ---------------
+## --- DHS reporting region (the design domain) ------------------------------
+# v024 IS the domain the survey was powered for, so these are the estimates the
+# published EDSMD-V report contains and the ones the model is benchmarked to.
+#
+# It is deliberately NOT forced onto a single ADM1_PCODE. The DHS regions are
+# not a relabelling of the 2025 adm1 layer: DHS splits Analamanga into
+# "antananarivo" (the six arrondissements) and "analamanga" (the rest), and
+# keeps the pre-2021 "vatovavy fitovinany" whole where the adm1 layer splits it
+# into Vatovavy and Fitovinany. Roughly a fifth of the children sit in those two
+# cases, so name matching would drop them. 03b_dhs_region_crosswalk.R resolves
+# the relation at DISTRICT level - which is where the real boundary lies - and
+# 08/09 aggregate the model over districts sharing a dhs_region to compare.
 direct_adm1 <- direct_by(des, "region")
+names(direct_adm1)[names(direct_adm1) == "region"] <- "dhs_region"
 
-# v024 is a labelled Stata integer; recover its labels and match them to the
-# official ADM1 pcodes so downstream joins are on pcode, not on region name.
 region_lab <- attr(kr$v024, "labels")
-if (!is.null(region_lab)) {
-  direct_adm1$region_name <- names(region_lab)[match(direct_adm1$region, region_lab)]
+if (!is.null(region_lab))
+  direct_adm1$dhs_region_name <- names(region_lab)[match(direct_adm1$dhs_region,
+                                                         region_lab)]
+
+xwalk_f <- file.path(DIR$processed, "dhs_region_crosswalk.csv")
+if (file.exists(xwalk_f)) {
+  xw <- utils::read.csv(xwalk_f)
+  cover <- xw |>
+    dplyr::group_by(dhs_region) |>
+    dplyr::summarise(n_districts = dplyr::n(),
+                     districts = paste(sort(ADM2_PCODE), collapse = ";"),
+                     .groups = "drop")
+  direct_adm1 <- dplyr::left_join(direct_adm1, cover, by = "dhs_region")
+  missing_x <- direct_adm1$dhs_region_name[is.na(direct_adm1$n_districts)]
+  if (length(missing_x) > 0)
+    msg("WARNING: DHS regions absent from the crosswalk: ",
+        paste(missing_x, collapse = ", "))
+} else {
+  msg("NOTE: run 03b_dhs_region_crosswalk.R to link DHS regions to districts.")
 }
-adm1 <- sf::st_read(OUT$adm1, quiet = TRUE)
-norm_nm <- function(x) {
-  x <- toupper(trimws(as.character(x)))
-  x <- gsub("[^A-Z]", "", x)
-  x
-}
-direct_adm1$ADM1_PCODE <- adm1$ADM1_PCODE[match(norm_nm(direct_adm1$region_name),
-                                                norm_nm(adm1$ADM1_EN))]
-unmatched <- direct_adm1$region_name[is.na(direct_adm1$ADM1_PCODE)]
-if (length(unmatched) > 0)
-  msg("WARNING: unmatched DHS region names -> fix by hand: ",
-      paste(unmatched, collapse = ", "))
 
 utils::write.csv(direct_adm1, OUT$direct_adm1, row.names = FALSE)
+msg("direct estimates for ", nrow(direct_adm1), " DHS reporting regions")
 
 ## --- District (adm2) -------------------------------------------------------
 # The 2021 DHS was NOT powered at district level, so many districts hold only a

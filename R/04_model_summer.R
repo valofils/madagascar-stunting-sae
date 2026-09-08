@@ -130,31 +130,78 @@ if (file.exists(OUT$cov_commune)) {
 # ===========================================================================
 # 4. Smoothed-direct model
 # ===========================================================================
-# smoothSurvey computes the design-based direct estimates internally from
-# strata / cluster / weights, then smooths them with the BYM2 prior. Passing
-# the child-level data rather than precomputed direct estimates lets SUMMER
-# keep the design and the smoothing consistent with each other.
-fit_data <- child |>
-  dplyr::transmute(region = ADM2_PCODE,
-                   stunted = stunted,
-                   strata = strata,
-                   weights = wt,
-                   cluster = cluster,
-                   household = household)
+# Letting smoothSurvey compute the direct estimates internally does not work
+# here, and the failure is instructive rather than incidental. The 2021 DHS was
+# not powered at district level: 9 of the 115 sampled districts contain a single
+# cluster, and one district (MG41415, 15 children) has zero stunted children.
+# A single PSU yields a design variance of exactly zero, and so does a domain
+# with no variation in the outcome. The Fay-Herriot likelihood treats the
+# sampling variance as known, so a zero variance is infinite precision, and INLA
+# crashes rather than converging.
+#
+# The standard remedy - the same one 06 applies to the Fay-Herriot fit - is a
+# GENERALISED VARIANCE FUNCTION: the design variance of a proportion scales
+# roughly as 1/n, so regress log(design variance) on log(sample size) across the
+# districts where it IS estimable, and use the fitted value everywhere. This
+# keeps all 115 districts in the model, replaces the degenerate variances with
+# something defensible, and stops the noise in the variance estimates from
+# leaking into the shrinkage weights.
+direct <- utils::read.csv(OUT$direct_adm2)
 
-msg("fitting SUMMER smoothSurvey (BYM2, ", length(have), " covariates)")
+est_ok <- direct$n_clusters >= 2 & is.finite(direct$direct_var) & direct$direct_var > 0
+msg("districts with an estimable design variance: ", sum(est_ok), " of ", nrow(direct),
+    " (", sum(!est_ok), " have a single cluster or no outcome variation)")
+
+# For a proportion under a clustered design, Var(p) ~ p(1-p) * DEFF / n. Fitting
+# log(var) on log(n) alone ignores the p(1-p) term and fits badly (R2 ~ 0.03),
+# because most of the spread in these variances is driven by how close p is to
+# 0 or 1, not by sample size. Including log(p(1-p)) and the cluster count
+# recovers the structure the design actually has.
+direct$pq <- pmax(direct$direct * (1 - direct$direct), 1e-6)
+vf <- stats::lm(log(direct_var) ~ log(n_children) + log(pq) + log(n_clusters),
+                data = direct[est_ok, ])
+direct$var_smooth <- exp(stats::predict(vf, newdata = direct))
+cf <- stats::coef(vf)
+msg("variance function R2 = ", round(summary(vf)$r.squared, 3),
+    " | slope on log(n_children) = ", round(cf[["log(n_children)"]], 3),
+    " (theory: about -1) | on log(p(1-p)) = ", round(cf[["log(pq)"]], 3),
+    " (theory: about +1)")
+utils::capture.output(summary(vf),
+                      file = file.path(DIR$tables, "04_variance_function.txt"))
+
+# X must span exactly the regions the data frame carries, so the model frame is
+# padded to all 120 districts: the five the DHS never sampled enter with an NA
+# estimate and are predicted from the BYM2 prior plus covariates, which is the
+# entire point of fitting a small-area model.
+direct_in <- data.frame(
+  region = as.character(adm2$ADM2_PCODE), stringsAsFactors = FALSE) |>
+  dplyr::left_join(
+    data.frame(region = as.character(direct$ADM2_PCODE),
+               stunted = direct$direct,
+               var = direct$var_smooth,
+               stringsAsFactors = FALSE),
+    by = "region")
+bad <- !is.na(direct_in$stunted) & (!is.finite(direct_in$var) | direct_in$var <= 0)
+if (any(bad)) {
+  msg("dropping ", sum(bad), " districts whose smoothed variance is still degenerate")
+  direct_in$stunted[bad] <- NA_real_
+}
+direct_in$var[is.na(direct_in$stunted)] <- NA_real_
+msg("model frame: ", nrow(direct_in), " districts, ",
+    sum(!is.na(direct_in$stunted)), " with a direct estimate")
+
+msg("fitting SUMMER smoothSurvey (BYM2, ", length(have), " covariates, ",
+    nrow(direct_in), " districts with data)")
 fit <- SUMMER::smoothSurvey(
-  data = fit_data,
+  data = NULL,
+  direct.est = direct_in,
+  direct.est.var = "var",
   Amat = Amat,
   X = X,
   response.type = "binary",
   responseVar = "stunted",
-  strataVar = "strata",
-  weightVar = "weights",
   regionVar = "region",
-  clusterVar = "~cluster+household",
-  CI = 0.95,
-  save.draws = TRUE)
+  CI = 0.95)
 
 saveRDS(fit, file.path(DIR$interim, "04_summer_fit.rds"))
 
@@ -162,7 +209,6 @@ saveRDS(fit, file.path(DIR$interim, "04_summer_fit.rds"))
 # 5. Collect results
 # ===========================================================================
 sm <- fit$smooth
-ht <- fit$HT
 
 pick <- function(df, cands, default = NA_real_) {
   hit <- cands[cands %in% names(df)]
@@ -180,20 +226,14 @@ out <- data.frame(
 bad <- is.na(out$summer_var)
 out$summer_var[bad] <- ((out$summer_upper - out$summer_lower)[bad] / (2 * 1.96))^2
 
-direct <- data.frame(
-  ADM2_PCODE = as.character(pick(ht, c("region"))),
-  direct     = pick(ht, c("direct.est", "HT.est")),
-  direct_var = pick(ht, c("direct.var", "HT.var")))
-direct$se <- sqrt(direct$direct_var)
-
-counts <- child |>
-  dplyr::group_by(ADM2_PCODE) |>
-  dplyr::summarise(n_children = dplyr::n(),
-                   n_clusters = dplyr::n_distinct(cluster), .groups = "drop")
+# When direct.est is supplied there is no HT slot to read back, so the direct
+# estimates come from 03 (which is where they were computed anyway).
+direct_out <- direct[, c("ADM2_PCODE", "direct", "direct_var", "se",
+                         "n_children", "n_clusters")]
+direct_out$ADM2_PCODE <- as.character(direct_out$ADM2_PCODE)
 
 out <- out |>
-  dplyr::left_join(direct, by = "ADM2_PCODE") |>
-  dplyr::left_join(counts, by = "ADM2_PCODE") |>
+  dplyr::left_join(direct_out, by = "ADM2_PCODE") |>
   dplyr::left_join(sf::st_drop_geometry(adm2)[, c("ADM2_PCODE", "ADM2_EN", "ADM1_EN")],
                    by = "ADM2_PCODE") |>
   dplyr::mutate(se_reduction = 1 - sqrt(summer_var) / se)

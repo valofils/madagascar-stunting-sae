@@ -15,6 +15,7 @@ STAGES <- c(
   "1"  = "R/01_boundaries_pop.R",
   "2"  = "R/02_covariates.R",
   "2b" = "R/02b_covariate_diagnostics.R",
+  "3b" = "R/03b_dhs_region_crosswalk.R",
   "3"  = "R/03_dhs_direct.R",
   "4"  = "R/04_model_summer.R",
   "5"  = "R/05_model_spde.R",
@@ -24,7 +25,7 @@ STAGES <- c(
   "9"  = "R/09_validate.R",
   "10" = "R/10_maps.R"
 )
-NEEDS_DHS <- c("3", "4", "5", "6", "7", "8", "9", "10")   # "1", "2", "2b" run without it
+NEEDS_DHS <- c("3b", "3", "4", "5", "6", "7", "8", "9", "10")   # "1", "2", "2b" run without it
 
 args <- commandArgs(trailingOnly = TRUE)
 run <- if (length(args) > 0) args else names(STAGES)

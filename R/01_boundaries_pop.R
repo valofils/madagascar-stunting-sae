@@ -71,15 +71,25 @@ adm3 <- adm3[, c("ADM1_PCODE", "ADM1_EN", "ADM2_PCODE", "ADM2_EN",
 # chain (it is the layer the communes were actually dissolved from), and
 # region NAMES are used to reconcile adm1's codes with it.
 
-norm_nm <- function(x) gsub("[^A-Z]", "", toupper(trimws(as.character(x))))
+# Digits MUST be kept. Antananarivo's arrondissements are named "1er
+# Arrondissement", "2e Arrondissement", ... and stripping digits collapses 2e
+# through 6e to the same string, so match() silently maps five distinct
+# districts onto whichever one comes first. Keep alphanumerics only.
+norm_nm <- function(x) gsub("[^A-Z0-9]", "", toupper(trimws(as.character(x))))
 
 ## (i) arrondissement crosswalk, matched on name inside Antananarivo city ----
 arr2 <- sf::st_drop_geometry(adm2)[grepl("^MG11101", adm2$ADM2_PCODE), ]
 is_arr <- grepl("^MG11101", adm3$ADM2_PCODE) & !(adm3$ADM2_PCODE %in% adm2$ADM2_PCODE)
 if (any(is_arr)) {
   new_code <- arr2$ADM2_PCODE[match(norm_nm(adm3$ADM2_EN[is_arr]), norm_nm(arr2$ADM2_EN))]
-  chk_arr <- !anyNA(new_code)
-  if (!chk_arr) stop("Arrondissement crosswalk failed: unmatched names.", call. = FALSE)
+  if (anyNA(new_code))
+    stop("Arrondissement crosswalk failed: unmatched names.", call. = FALSE)
+  # Each arrondissement must receive its OWN code. A collapse here would merge
+  # districts of the capital without any error being raised, so assert it.
+  if (anyDuplicated(new_code))
+    stop("Arrondissement crosswalk collapsed ", sum(duplicated(new_code)),
+         " districts onto a shared code - check norm_nm() is not stripping digits.",
+         call. = FALSE)
   msg("repaired ", sum(is_arr), " communes: arrondissement ADM2_PCODE re-coded ",
       "to the adm2 form (e.g. MG11101001A -> MG11101A)")
   adm3$ADM2_PCODE[is_arr] <- new_code

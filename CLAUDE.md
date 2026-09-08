@@ -26,14 +26,24 @@ Positioning against the two direct precedents (do not just reproduce them):
 
 ## Data
 
-### DHS 2021 Madagascar (EDSMD-V) — status: request PENDING approval
+### DHS 2021 Madagascar (EDSMD-V) — status: APPROVED 2026-09-08 (Survey + GPS)
 
-Registered at dhsprogram.com; Survey + GPS both requested for Madagascar. Files to download once approved, into `data/raw/dhs/`:
+Both approvals granted to valofils@gmail.com on 2026-09-08: Survey data (archive@dhsprogram.com) and GPS data (gpsrequests@dhsprogram.com). Project registered as *"Geospatial small-area estimation of child stunting in Madagascar: explaining the fertile-highland paradox using the 2021 DHS"*.
 
-- **KR** (Children's Recode) — anthropometry / HAZ. Primary outcome source.
-- **PR** (Household Member Recode) — WASH, household context.
-- **IR** (Individual/Women's Recode) — maternal education, dietary diversity, ANC.
-- **GE** (Geographic / GPS cluster coordinates) — required for covariate linkage & spatial models. Coordinates are DHS-displaced; never used to identify households.
+Download from <https://dhsprogram.com/data/dataset_admin/login_main.cfm> (Stata format), unzip, and place the extracted folders under `data/raw/dhs/`. Madagascar is country code `MD`, 2021 is DHS phase 8, so the files are:
+
+| Recode | Zip | Extracted file the pipeline looks for | Used for |
+|---|---|---|---|
+| **KR** Children's | `MDKR81DT.ZIP` | `MDKR81FL.DTA` | HAZ, stunting, dietary diversity, WASH, maternal variables |
+| **GE** GPS | `MDGE81FL.ZIP` | `MDGE81FL.shp` | cluster coordinates for covariate linkage and the SPDE model |
+| **PR** Household member | `MDPR81DT.ZIP` | `MDPR81FL.DTA` | optional cross-check on household WASH |
+| **IR** Women's | `MDIR81DT.ZIP` | `MDIR81FL.DTA` | optional; ANC and maternal detail not carried into KR |
+
+KR and GE are the two that actually gate the pipeline. The scripts glob recursively and case-insensitively (`^MDKR.*[.]DTA$`, `GE.*[.]shp$`), so the exact folder layout under `data/raw/dhs/` does not matter.
+
+**Terms of use.** Microdata must not be redistributed, shared, or embedded in any tool or dashboard. `data/raw/dhs/` is gitignored, as are `*.DTA`. Any resulting publication PDF goes to references@dhsprogram.com.
+
+**GPS displacement**, restated from the approval letter because it is a modelling constraint, not a footnote: urban clusters are displaced up to 2 km, rural up to 5 km, and 1% of rural clusters up to 10 km, restricted to stay within the second administrative level where possible. DHS state explicitly that *measuring direct distance from a GPS location to another site is not appropriate*. This is why `02_covariates.R` reads every covariate over a displacement-matched buffer rather than at the point, and why no commune-level result should be read as if cluster positions were exact.
 
 ### Boundaries & population — DONE
 

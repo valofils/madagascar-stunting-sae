@@ -55,6 +55,7 @@ Rscript run_all.R 1 2      # selected stages only
 | 1 | `01_boundaries_pop.R` | harmonise adm1–adm3, WorldPop population, commune adjacency graph | no |
 | 2 | `02_covariates.R` | EO raster stack → commune and DHS-cluster covariates | partly |
 | 2b | `02b_covariate_diagnostics.R` | covariate integrity checks, highland profile, collinearity | no |
+| 3b | `03b_dhs_region_crosswalk.R` | map districts to the 23 DHS reporting regions | yes |
 | 3 | `03_dhs_direct.R` | design-based direct estimates (`survey`/`srvyr`) | yes |
 | 4 | `04_model_summer.R` | SUMMER BYM2 smoothed-direct, district level | yes |
 | 5 | `05_model_spde.R` | binomial SPDE/INLA geostatistical surface, 1 km | yes |
@@ -64,9 +65,9 @@ Rscript run_all.R 1 2      # selected stages only
 | 9 | `09_validate.R` | spatial block CV, WAIC/CPO/PIT, benchmarking | yes |
 | 10 | `10_maps.R` | final figures | yes |
 
-Stage 1 is complete. Stage 2 runs now for communes and completes for clusters
-once the DHS GPS file lands. Stages 3–10 are written and ready; they fail with an
-explicit message naming the missing file until the microdata arrive.
+Stages 1, 2 and 2b are complete for communes. Stage 2 completes its cluster half
+the moment the GPS file lands, and stages 3–10 run from there; until then each
+fails with an explicit message naming the file it wants.
 
 ## Three decisions worth knowing about
 
@@ -88,9 +89,11 @@ over a buffer matching the displacement radius.
 
 ## Data
 
-- **DHS 2021 Madagascar (EDSMD-V)** — request pending. Place the KR/PR/IR recodes
-  and the GE shapefile under `data/raw/dhs/`. DHS terms forbid redistribution;
-  the directory is gitignored.
+- **DHS 2021 Madagascar (EDSMD-V)** — access approved (Survey + GPS, 2026-09-08).
+  Download in Stata format, unzip, and drop the folders under `data/raw/dhs/`:
+  `MDKR81DT.ZIP` (children, the primary outcome) and `MDGE81FL.ZIP` (GPS) are the
+  two that gate the pipeline; `MDPR81DT.ZIP` and `MDIR81DT.ZIP` are optional.
+  DHS terms forbid redistribution; the directory is gitignored.
 - **Boundaries** — BNGRC/OCHA via PAM, 2025 edition: 24 regions, 120 districts,
   1,701 communes, 17,470 fokontany. Supplied as `03_Boundaries_2025.rar`.
 - **WorldPop 2020** 100 m constrained, total and under-5 — downloaded automatically.

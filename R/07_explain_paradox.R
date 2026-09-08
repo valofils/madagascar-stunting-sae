@@ -65,7 +65,15 @@ dat <- child |>
     mother_bmi = mean(mother_bmi, na.rm = TRUE),
     mother_age1b = mean(mother_age1b, na.rm = TRUE),
     birth_order = mean(birth_order, na.rm = TRUE),
+    # H2, from what children actually ate (see 03, section 2b)
+    diet_diversity = mean(diet_diversity, na.rm = TRUE),
+    mdd = mean(mdd, na.rm = TRUE),
+    # H3, direct infection signal rather than settlement density alone
     diarrhea_2w = mean(diarrhea_2w == 1, na.rm = TRUE),
+    fever_2w = mean(fever_2w == 1, na.rm = TRUE),
+    improved_water = mean(improved_water, na.rm = TRUE),
+    basic_sanitation = mean(basic_sanitation, na.rm = TRUE),
+    open_defecation = mean(open_defecation, na.rm = TRUE),
     pct_male = mean(sex == 1, na.rm = TRUE),
     mean_age_m = mean(age_month, na.rm = TRUE),
     .groups = "drop") |>
@@ -89,11 +97,25 @@ msg("unadjusted highland-lowland HAZ gap: ", round(raw_gap, 3), " SD")
 # Each block names the covariates that operationalise one hypothesis. Only
 # those actually present in the covariate file are used, so the script still
 # runs when a raster could not be obtained.
+# Note on what each block can and cannot carry, given 02b:
+#   A  altitude and cold are collinear at r = -0.90; this block is a single
+#      altitude-temperature construct and must be reported as such.
+#   B  cattle_density behaves as a WEALTH proxy here (highlands have MORE
+#      cattle), so diet_diversity / mdd from the KR recode is what actually
+#      tests H2. Cattle is retained but must not be read as food access.
+#   C  frac_built is kept and nightlights deliberately excluded: they correlate
+#      0.95, and nightlights sits conceptually in H4, so including both would
+#      inflate whichever block enters first.
+#   D  the highlands are BETTER served than the lowlands, so this block is
+#      expected to WIDEN the highland penalty, not absorb it. A negative
+#      "explained" share here is the correct result, not a bug.
 BLOCKS <- list(
   A_cold_stress = c("temp_min_cold", "temp_seasonality", "ruggedness"),
-  B_diet        = c("frac_crop", "cattle_density", "precip_annual",
-                    "precip_seasonality"),
-  C_infection   = c("pop_count", "frac_built", "frac_water_perm", "diarrhea_2w"),
+  B_diet        = c("diet_diversity", "mdd", "frac_crop", "cattle_density",
+                    "precip_annual", "precip_seasonality"),
+  C_infection   = c("pop_count", "frac_built", "frac_water_perm",
+                    "diarrhea_2w", "fever_2w", "improved_water",
+                    "basic_sanitation", "open_defecation"),
   D_care        = c("mother_edu", "wealth_q", "mother_bmi", "mother_age1b",
                     "birth_order", "travel_time", "travel_time_healthcare")
 )
