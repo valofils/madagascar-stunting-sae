@@ -6,6 +6,10 @@ pipeline enriched with earth-observation covariates — and an attempt to explai
 the **fertile-highland paradox**: stunting is highest in the country's most
 agriculturally productive region.
 
+**[Read the results write-up →](https://claude.ai/code/artifact/d86e819e-4fb1-42df-83bd-6f6169d67dfd)**
+&nbsp;·&nbsp; a rendered copy is version-controlled at
+[`outputs/report_fertile_highland_paradox.html`](outputs/report_fertile_highland_paradox.html).
+
 ---
 
 ## The question
@@ -130,6 +134,12 @@ CRAN, and without it `renv::snapshot()` refuses to write a lockfile.
 
 ## Outputs
 
+- **[Results write-up](https://claude.ai/code/artifact/d86e819e-4fb1-42df-83bd-6f6169d67dfd)** —
+  headline estimates, the paradox decomposition, comparison against the World
+  Bank and IHME precedents, and the validation including what failed. The same
+  document is in the repo at
+  [`outputs/report_fertile_highland_paradox.html`](outputs/report_fertile_highland_paradox.html)
+  (GitHub shows HTML as source; download it or serve it via Pages to read it).
 - `data/processed/commune_stunting.gpkg` — commune estimates with credible
   intervals, benchmarked and unbenchmarked
 - `outputs/tables/07_paradox_decomposition.csv` — the decomposition
