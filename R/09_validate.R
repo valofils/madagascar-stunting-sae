@@ -283,28 +283,186 @@ if (file.exists(f_agg1) && file.exists(OUT$direct_adm1)) {
 }
 
 # ===========================================================================
-# 6. External coherence with IHME
+# 6. External coherence with IHME Local Burden of Disease
 # ===========================================================================
-# Optional: the IHME Local Burden of Disease stunting surface (2000-2017) is
-# not redistributable here, so this section runs only if a local copy exists.
-ihme <- file.path(DIR$rasters, "ihme", "IHME_stunting_prev_2017.tif")
-if (file.exists(ihme)) {
+# The IHME child growth failure surfaces (Nature 2020) are the other published
+# estimate of Malagasy stunting below national level, so agreement with them is
+# the one genuinely EXTERNAL check available. It is a check of spatial PATTERN,
+# not of level, and that distinction is not a technicality:
+#
+#   - IHME's series ends in 2017; this one is the 2021 DHS. Four years apart,
+#     spanning COVID and the 2020-21 Grand Sud drought.
+#   - IHME pools ~460 surveys across 105 countries with continentally calibrated
+#     covariates; this model is fitted to one Malagasy survey with covariates
+#     chosen for Malagasy agro-ecology.
+#   - IHME publishes 5x5 km aggregated to admin2; communes are admin3.
+#
+# A level difference is therefore expected and uninformative. What WOULD be
+# informative is disagreement about where stunting is concentrated, so the
+# headline statistics are Pearson and Spearman correlation across districts and
+# the overlap of the worst-20 lists, with the level gap reported separately
+# rather than folded in.
+#
+# Two input forms are accepted, in order of preference:
+#   1. IHME's own admin2 CSV aggregate - avoids imposing my zonal statistics on
+#      their raster, and reproduces their published numbers exactly
+#   2. a stunting GeoTIFF, aggregated here with the same population weights the
+#      model surface uses
+ihme_dir <- file.path(DIR$rasters, "ihme")
+dir.create(ihme_dir, recursive = TRUE, showWarnings = FALSE)
+
+ihme_csv <- list.files(ihme_dir, pattern = "[.]csv$", full.names = TRUE,
+                       ignore.case = TRUE)
+ihme_tif <- list.files(ihme_dir, pattern = "[.]tif$", full.names = TRUE,
+                       ignore.case = TRUE)
+
+norm_nm <- function(x) gsub("[^A-Z0-9]", "", toupper(trimws(as.character(x))))
+
+adm2 <- sf::st_read(OUT$adm2, quiet = TRUE)
+a2 <- utils::read.csv(file.path(DIR$processed, "aggregated_adm2.csv"))
+mine <- dplyr::left_join(
+  sf::st_drop_geometry(adm2)[, c("ADM2_PCODE", "ADM2_EN", "ADM1_EN")],
+  a2[, c("ADM2_PCODE", "est", "lower", "upper")], by = "ADM2_PCODE")
+
+cmp2 <- NULL
+
+if (length(ihme_csv) > 0) {
+  raw <- utils::read.csv(ihme_csv[1])
+  msg("IHME admin2 CSV: ", basename(ihme_csv[1]), " (", nrow(raw), " rows)")
+  nm <- names(raw)
+  pickcol <- function(cands) { h <- cands[cands %in% nm]; if (length(h)) h[1] else NA_character_ }
+  c_name <- pickcol(c("ADM2_NAME", "adm2_name", "location_name", "ADM2_EN"))
+  c_val  <- pickcol(c("mean", "val", "value", "prevalence"))
+  c_year <- pickcol(c("year", "year_id"))
+  c_ind  <- pickcol(c("indicator", "measure", "measure_name"))
+  c_iso  <- pickcol(c("ADM0_NAME", "adm0_name", "iso3", "ISO3"))
+
+  if (is.na(c_name) || is.na(c_val)) {
+    msg("could not identify the name/value columns. Columns present: ",
+        paste(nm, collapse = ", "))
+  } else {
+    d <- raw
+    if (!is.na(c_iso)) {
+      keep <- grepl("madagascar|MDG", d[[c_iso]], ignore.case = TRUE)
+      if (any(keep)) d <- d[keep, ]
+    }
+    if (!is.na(c_ind)) {
+      st <- grepl("stunt", d[[c_ind]], ignore.case = TRUE)
+      if (any(st)) d <- d[st, ]
+    }
+    if (!is.na(c_year)) {
+      yr <- suppressWarnings(max(as.numeric(d[[c_year]]), na.rm = TRUE))
+      if (is.finite(yr)) {
+        d <- d[as.numeric(d[[c_year]]) == yr, ]
+        msg("using IHME year ", yr)
+      }
+    }
+    ih <- data.frame(key = norm_nm(d[[c_name]]), ihme = as.numeric(d[[c_val]]))
+    ih <- ih[!is.na(ih$ihme) & !duplicated(ih$key), ]
+    if (max(ih$ihme, na.rm = TRUE) > 1.5) ih$ihme <- ih$ihme / 100
+    mine$key <- norm_nm(mine$ADM2_EN)
+    cmp2 <- dplyr::inner_join(mine, ih, by = "key")
+    msg("districts matched on name: ", nrow(cmp2), " of ", nrow(mine))
+    miss <- mine[!mine$key %in% ih$key, c("ADM2_PCODE", "ADM2_EN")]
+    if (nrow(miss) > 0) {
+      msg("  ", nrow(miss), " unmatched - written to 09_ihme_unmatched_districts.csv ",
+          "(district naming differs between the 2025 PAM layer and IHME's GADM base)")
+      utils::write.csv(miss, file.path(DIR$tables, "09_ihme_unmatched_districts.csv"),
+                       row.names = FALSE)
+    }
+  }
+} else if (length(ihme_tif) > 0) {
   need("terra", "exactextractr")
-  adm2 <- sf::st_read(OUT$adm2, quiet = TRUE)
-  r <- terra::rast(ihme)
-  adm2$ihme <- exactextractr::exact_extract(r, adm2, "mean", progress = FALSE)
-  a2 <- utils::read.csv(file.path(DIR$processed, "aggregated_adm2.csv"))
-  cmp2 <- dplyr::inner_join(sf::st_drop_geometry(adm2)[, c("ADM2_PCODE", "ADM2_EN", "ihme")],
-                            a2, by = "ADM2_PCODE")
-  msg("correlation with IHME at district level: ",
-      round(stats::cor(cmp2$est, cmp2$ihme, use = "complete.obs"), 3),
-      "  (IHME is a 2017 surface; a difference in level is expected)")
+  msg("IHME raster: ", basename(ihme_tif[1]), " (no admin2 CSV present)")
+  r <- terra::rast(ihme_tif[1])
+  # Population-weight the zonal mean, exactly as the model surface is aggregated
+  # in 08, so the two district numbers are formed the same way and the
+  # comparison is not partly an artefact of differing aggregation.
+  wp <- file.path(DIR$rasters, "worldpop")
+  u5f <- file.path(wp, c("mdg_f_0_2020_constrained.tif", "mdg_f_1_2020_constrained.tif",
+                         "mdg_m_0_2020_constrained.tif", "mdg_m_1_2020_constrained.tif"))
+  z <- sf::st_transform(adm2, terra::crs(r))
+  if (all(file.exists(u5f))) {
+    wgt <- terra::resample(sum(terra::rast(u5f), na.rm = TRUE), r, method = "sum")
+    mine$ihme <- exactextractr::exact_extract(r, z, "weighted_mean", weights = wgt,
+                                              progress = FALSE)
+  } else {
+    mine$ihme <- exactextractr::exact_extract(r, z, "mean", progress = FALSE)
+  }
+  if (max(mine$ihme, na.rm = TRUE) > 1.5) mine$ihme <- mine$ihme / 100
+  cmp2 <- mine[!is.na(mine$ihme), ]
+} else {
+  msg("IHME estimates not present - external comparison skipped.")
+  msg("  These files sit behind a free IHME account and require accepting the")
+  msg("  IHME Free-of-Charge Non-commercial User Agreement, so they cannot be")
+  msg("  fetched automatically. From")
+  msg("    https://ghdx.healthdata.org/record/ihme-data/",
+      "lmic-child-growth-failure-geospatial-estimates-2000-2017")
+  msg("  download either the ADMIN2 CSV (preferred) or the stunting GeoTIFF,")
+  msg("  unzip, and drop the file into:")
+  msg("    ", ihme_dir)
+  msg("  Then re-run this script; nothing else needs changing.")
+}
+
+if (!is.null(cmp2) && nrow(cmp2) > 5) {
+  cmp2$diff <- cmp2$est - cmp2$ihme
+  r_p <- stats::cor(cmp2$est, cmp2$ihme, use = "complete.obs")
+  r_s <- stats::cor(cmp2$est, cmp2$ihme, method = "spearman", use = "complete.obs")
+
+  # Worst-20 overlap is the targeting question. Two surfaces can correlate well
+  # and still disagree about which districts belong at the top of a priority
+  # list, which is the use these numbers are actually put to.
+  k <- min(20, nrow(cmp2))
+  top_mine <- cmp2$ADM2_PCODE[order(-cmp2$est)][seq_len(k)]
+  top_ihme <- cmp2$ADM2_PCODE[order(-cmp2$ihme)][seq_len(k)]
+  overlap <- length(intersect(top_mine, top_ihme))
+
+  msg("=== IHME coherence over ", nrow(cmp2), " districts ===")
+  msg("Pearson r ", round(r_p, 3), " | Spearman rho ", round(r_s, 3))
+  msg("worst-", k, " districts shared: ", overlap, " of ", k)
+  msg("level: this model ", round(100 * mean(cmp2$est, na.rm = TRUE), 1),
+      "% vs IHME ", round(100 * mean(cmp2$ihme, na.rm = TRUE), 1),
+      "% (difference ", round(100 * mean(cmp2$diff, na.rm = TRUE), 1),
+      " points; a gap is expected between 2017 and 2021)")
+
   utils::write.csv(cmp2, file.path(DIR$tables, "09_ihme_comparison.csv"),
                    row.names = FALSE)
-} else {
-  msg("IHME raster not present - external comparison skipped.")
-  msg("  Place IHME_stunting_prev_2017.tif in ", file.path(DIR$rasters, "ihme"),
-      " to enable it.")
+  utils::write.csv(
+    data.frame(n_districts = nrow(cmp2), pearson_r = r_p, spearman_rho = r_s,
+               top_k = k, top_k_overlap = overlap,
+               mean_model = mean(cmp2$est, na.rm = TRUE),
+               mean_ihme = mean(cmp2$ihme, na.rm = TRUE),
+               mean_diff = mean(cmp2$diff, na.rm = TRUE)),
+    file.path(DIR$tables, "09_ihme_summary.csv"), row.names = FALSE)
+
+  p_ih <- ggplot2::ggplot(cmp2, ggplot2::aes(ihme, est)) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed",
+                         colour = "grey50") +
+    ggplot2::geom_point(alpha = 0.65, colour = "#1A6E9E") +
+    ggplot2::geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+                         colour = "#A8402C", linewidth = 0.7) +
+    ggplot2::scale_x_continuous(labels = scales::percent) +
+    ggplot2::scale_y_continuous(labels = scales::percent) +
+    ggplot2::labs(x = "IHME Local Burden of Disease, latest year (district)",
+                  y = "This model, DHS 2021 (district)",
+                  title = "External coherence with IHME",
+                  subtitle = paste0("Pearson r = ", round(r_p, 3),
+                                    ", Spearman rho = ", round(r_s, 3),
+                                    ". Dashed line is equality; a level shift",
+                                    " between 2017 and 2021 is expected.")) +
+    ggplot2::theme_minimal(base_size = 10)
+  save_fig(p_ih, "09_ihme_scatter.png", width = 6.5, height = 5.5)
+
+  gmap <- dplyr::left_join(adm2, cmp2[, c("ADM2_PCODE", "diff")], by = "ADM2_PCODE")
+  p_dm <- ggplot2::ggplot(gmap) +
+    ggplot2::geom_sf(ggplot2::aes(fill = diff), colour = "grey40", linewidth = 0.08) +
+    ggplot2::scale_fill_gradient2(low = "#1A6E9E", mid = "grey92", high = "#A8402C",
+                                  midpoint = 0, labels = scales::percent,
+                                  name = "this model\nminus IHME") +
+    ggplot2::labs(title = "Where the two estimates disagree",
+                  subtitle = "Red: this model is higher. Blue: IHME is higher.") +
+    ggplot2::theme_void(base_size = 9)
+  save_fig(p_dm, "09_ihme_difference_map.png", width = 6, height = 8)
 }
 
 msg("09_validate.R complete")

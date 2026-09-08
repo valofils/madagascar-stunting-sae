@@ -332,6 +332,41 @@ product, but they should not be described as exact.
 children** (`outputs/tables/08_commune_burden_ranking.csv`). Prevalence and
 burden rank differently, which is why `10_maps.R` plots them side by side.
 
+## IHME external comparison - blocked on a manual download
+
+`09` contains a full coherence check against the IHME Local Burden of Disease
+child growth failure surfaces, but it cannot fetch the data. Every file on the
+GHDx record redirects to `download-access/login`, and the page states plainly:
+*"To download data and documentation files, please register and sign in."*
+Access requires creating an account and accepting the IHME Free-of-Charge
+Non-commercial User Agreement - both decisions for the analyst, not the agent.
+The VizHub API serves the same numbers unauthenticated, but pulling the dataset
+through it would be working around the gate IHME deliberately put in place, so
+the pipeline does not do that.
+
+To enable it, from
+<https://ghdx.healthdata.org/record/ihme-data/lmic-child-growth-failure-geospatial-estimates-2000-2017>
+download **either** the ADMIN2 CSV aggregate (preferred) **or** the stunting
+GeoTIFF, unzip, and drop the file into `data/raw/rasters/ihme/`. Then re-run
+`09_validate.R` - it detects either form automatically and nothing else changes.
+
+**The comparison is of spatial pattern, not level, and the code enforces that
+reading.** IHME's series ends in 2017 against this survey's 2021; it pools ~460
+surveys across 105 countries with continentally calibrated covariates; and it
+publishes at admin2 where this project targets admin3. A level difference is
+expected and uninformative. The reported statistics are therefore Pearson and
+Spearman correlation across districts plus the overlap of the worst-20 lists -
+the targeting question, since two surfaces can correlate well and still disagree
+about which districts head a priority list - with the level gap reported
+separately rather than folded in. Where a GeoTIFF is supplied it is aggregated
+with the same under-5 population weights `08` uses, so the comparison is not
+partly an artefact of differing aggregation.
+
+The code path was exercised end to end against a synthetic stand-in shaped like
+the IHME CSV, which is why it is known to run. That file and every output it
+produced were deleted afterwards: **no IHME numbers in this repo are real until
+the genuine download is in place.**
+
 ## Working conventions for Claude Code
 
 - Proceed autonomously — do not ask for per-task "allow" confirmation; batch the work.
