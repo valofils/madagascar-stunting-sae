@@ -52,3 +52,11 @@ Thumbs.db
 # ---- Personal / administrative documents (never publish) ------------------
 data/*.pdf
 AuthLetter*.pdf
+
+# ---- Cluster-level DHS outputs: derived micro-data, never publish ---------
+# DHS terms forbid redistributing micro-level data. A DHS cluster is the PSU,
+# which is exactly what the GPS displacement exists to protect, so per-cluster
+# rows do not leave this machine. Aggregate outputs (commune, district, region)
+# and figures plotted from clusters WITHOUT identifiers are fine to publish.
+outputs/tables/03_cluster_haz.csv
+outputs/tables/09_cv_predictions.csv
