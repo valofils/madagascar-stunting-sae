@@ -16,7 +16,7 @@
 # precision of the predicted surface.
 #
 # The fitted field is then projected onto a prediction grid covering
-# Madagascar, giving the 1 km surface that 08_aggregate.R averages up to
+# Madagascar, giving the 5 km surface that 08_aggregate.R averages up to
 # communes with under-5 population weights.
 #
 # Inputs : data/interim/dhs_child_haz.rds        (from 03)
@@ -119,9 +119,20 @@ spde <- INLA::inla.spde2.pcmatern(mesh = mesh,
 # ===========================================================================
 # 4. Prediction grid
 # ===========================================================================
-# 1 km grid over the land mass; covariates come from the same commune-level
-# raster stack, resampled to the grid.
-GRID_KM <- 1
+# Prediction grid resolution. 5 km rather than 1 km, chosen deliberately:
+#   - 1 km over Madagascar is 632,512 cells. Carrying those as prediction rows
+#     inside the INLA stack (with config = TRUE, needed for posterior sampling)
+#     exhausts memory and the inla binary crashes.
+#   - Nothing in the model actually resolves 1 km. Land cover enters at commune
+#     resolution, the coarsest covariate (cattle) is 10 km, the DHS coordinates
+#     are displaced up to 5 km, and the Matern range is tens of kilometres.
+#   - 5 km still gives ~14 cells inside an average commune (mean area 350 km2),
+#     which is ample for population-weighted aggregation, and matches the
+#     resolution IHME publishes at.
+# Prediction is done by posterior sampling onto the grid AFTER fitting rather
+# than by putting the grid in the stack, which is both the standard SPDE
+# workflow and what makes the memory manageable.
+GRID_KM <- 5
 grid_file <- file.path(DIR$interim, "05_prediction_grid.rds")
 
 build_grid <- function() {
@@ -163,7 +174,38 @@ if (!"ADM3_PCODE" %in% names(grid)) {
   gsf <- sf::st_as_sf(grid, coords = c("lon", "lat"), crs = CRS_GEO, remove = FALSE)
   j <- sf::st_join(gsf["lon"], adm3["ADM3_PCODE"], join = sf::st_intersects)
   grid$ADM3_PCODE <- j$ADM3_PCODE
+  # Displacement of the coastline between the polygon layer and the raster grid
+  # leaves a fringe of cells outside every commune; snap them so no populated
+  # cell is dropped at the aggregation step.
+  miss <- which(is.na(grid$ADM3_PCODE))
+  if (length(miss) > 0) {
+    nearest <- sf::st_nearest_feature(gsf[miss, ], adm3)
+    grid$ADM3_PCODE[miss] <- adm3$ADM3_PCODE[nearest]
+    msg("snapped ", length(miss), " grid cells to the nearest commune")
+  }
   saveRDS(grid, grid_cov_file)
+}
+
+# Land cover enters the surface at COMMUNE resolution, not 1 km. The WorldCover
+# class fractions are computed by zonal statistics over a 10 m grid, which is
+# affordable for 1,701 commune polygons and for 650 cluster buffers but not for
+# ~600,000 grid cells. Each cell therefore inherits its commune's fractions.
+#
+# The cost is explicit: within-commune variation in cropland, built-up area and
+# water is not represented in the fixed effects, and is left to the SPDE field
+# to absorb. Since the cluster-level covariates ARE measured over a 5 km buffer,
+# the fitted coefficients apply to a finer scale than the prediction grid
+# supplies, which will tend to attenuate their apparent effect on the surface.
+# Dropping these covariates entirely would be worse - frac_crop carries H2 - but
+# the surface should not be read as resolving land cover below commune level.
+lc_cols <- grep("^frac_", have, value = TRUE)
+if (length(lc_cols) > 0 && !all(lc_cols %in% names(grid))) {
+  cov_com <- utils::read.csv(OUT$cov_commune)
+  keep_lc <- intersect(lc_cols, names(cov_com))
+  grid <- dplyr::left_join(grid, cov_com[, c("ADM3_PCODE", keep_lc)],
+                           by = "ADM3_PCODE")
+  msg("land cover attached at commune resolution: ",
+      paste(keep_lc, collapse = ", "))
 }
 
 grid_use <- grid
@@ -181,17 +223,15 @@ gpts <- sf::st_as_sf(grid_use, coords = c("lon", "lat"), crs = CRS_GEO,
 coo_pred <- sf::st_coordinates(gpts) / 1000
 
 # ===========================================================================
-# 5. Stacks and fit
+# 5. Fit (estimation locations only)
 # ===========================================================================
 A_est <- INLA::inla.spde.make.A(mesh, loc = coo)
 A_pred <- INLA::inla.spde.make.A(mesh, loc = coo_pred)
 idx <- INLA::inla.spde.make.index("s", n.spde = spde$n.spde)
 
 fixed_df <- function(d) {
-  x <- data.frame(intercept = 1)
-  x <- cbind(x[rep(1, nrow(d)), , drop = FALSE], d[, have, drop = FALSE])
-  rownames(x) <- NULL
-  x
+  x <- data.frame(intercept = rep(1, nrow(d)))
+  cbind(x, as.data.frame(d)[, have, drop = FALSE])
 }
 
 stk_est <- INLA::inla.stack(
@@ -199,25 +239,18 @@ stk_est <- INLA::inla.stack(
   A = list(A_est, 1),
   effects = list(idx, cbind(fixed_df(dat), nugget = seq_len(nrow(dat)))))
 
-stk_pred <- INLA::inla.stack(
-  tag = "pred", data = list(y = NA, n = NA),
-  A = list(A_pred, 1),
-  effects = list(idx, cbind(fixed_df(grid_use), nugget = NA)))
-
-stk <- INLA::inla.stack(stk_est, stk_pred)
-
 form <- stats::as.formula(paste(
   "y ~ 0 + intercept +", paste(have, collapse = " + "),
   "+ f(s, model = spde)",
   "+ f(nugget, model = 'iid', hyper = list(prec = list(prior = 'pc.prec',",
   "                                                    param = c(1, 0.01))))"))
 
-msg("fitting INLA SPDE model (this is the slow step)")
+msg("fitting INLA SPDE model on ", nrow(dat), " clusters")
 t0 <- Sys.time()
 fit <- INLA::inla(
-  form, family = "binomial", Ntrials = INLA::inla.stack.data(stk)$n,
-  data = INLA::inla.stack.data(stk, spde = spde),
-  control.predictor = list(A = INLA::inla.stack.A(stk), compute = TRUE, link = 1),
+  form, family = "binomial", Ntrials = INLA::inla.stack.data(stk_est)$n,
+  data = INLA::inla.stack.data(stk_est, spde = spde),
+  control.predictor = list(A = INLA::inla.stack.A(stk_est), compute = TRUE, link = 1),
   control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE),
   control.inla = list(int.strategy = "eb"),
   verbose = FALSE)
@@ -243,26 +276,51 @@ utils::write.csv(data.frame(range_km = rng, field_sd = sqrt(sig),
                  file.path(DIR$tables, "05_spde_spatial_summary.csv"),
                  row.names = FALSE)
 
-# ---- Grid predictions ------------------------------------------------------
-ip <- INLA::inla.stack.index(stk, "pred")$data
+# ---- Grid predictions, by posterior sampling ------------------------------
+# The grid is NOT part of the fitted stack, so predictions are formed by drawing
+# from the joint posterior and evaluating the linear predictor at the grid:
+#
+#     eta_g = x_g' beta + A_g s
+#
+# The cluster-level nugget is deliberately EXCLUDED. It represents idiosyncratic
+# variation of a surveyed cluster around the underlying surface, not a property
+# of the location, so including it would inflate every commune interval with
+# noise that does not belong to the place.
+#
+# Working draw by draw also preserves the posterior correlation between
+# neighbouring cells, which is what makes the aggregated commune intervals in 08
+# honest rather than falsely narrow.
+N_DRAWS <- 500
+msg("drawing ", N_DRAWS, " posterior samples and projecting onto ",
+    nrow(grid_use), " grid cells")
+samp <- INLA::inla.posterior.sample(N_DRAWS, fit, seed = 20210)
+
+rn <- rownames(samp[[1]]$latent)
+s_rows <- grep("^s:", rn)
+fx_rows <- vapply(c("intercept", have),
+                  function(v) which(rn == paste0(v, ":1")), integer(1))
+stopifnot(length(s_rows) == spde$n.spde, !anyNA(fx_rows))
+
+Xg <- as.matrix(cbind(intercept = 1, grid_use[, have, drop = FALSE]))
+
+# A_pred is a sparse Matrix, so its product is an S4 Matrix object; plogis()
+# needs a plain numeric vector, hence the coercion INSIDE the call.
+draws <- vapply(samp, function(z) {
+  lat <- z$latent[, 1]
+  eta <- as.numeric(Xg %*% lat[fx_rows]) + as.numeric(A_pred %*% lat[s_rows])
+  stats::plogis(eta)
+}, numeric(nrow(grid_use)))
+
 grid_out <- data.frame(
   lon = grid_use$lon, lat = grid_use$lat, ADM3_PCODE = grid_use$ADM3_PCODE,
-  p_mean = fit$summary.fitted.values[ip, "mean"],
-  p_sd = fit$summary.fitted.values[ip, "sd"],
-  p_lower = fit$summary.fitted.values[ip, "0.025quant"],
-  p_upper = fit$summary.fitted.values[ip, "0.975quant"])
+  p_mean = rowMeans(draws),
+  p_sd = apply(draws, 1, stats::sd),
+  p_lower = apply(draws, 1, stats::quantile, 0.025),
+  p_upper = apply(draws, 1, stats::quantile, 0.975))
 saveRDS(grid_out, file.path(DIR$processed, "spde_grid_predictions.rds"))
-msg("wrote spde_grid_predictions.rds (", nrow(grid_out), " cells)")
+msg("wrote spde_grid_predictions.rds (", nrow(grid_out), " cells) | national mean ",
+    round(100 * mean(grid_out$p_mean), 1), "%")
 
-# ---- Posterior draws, for correct uncertainty when aggregating ------------
-# Aggregating the posterior MEAN to communes would give the right point
-# estimate but the wrong interval, because it ignores the spatial correlation
-# between neighbouring cells. 08_aggregate.R therefore needs draws, not means.
-msg("drawing 500 posterior samples for aggregation")
-samp <- INLA::inla.posterior.sample(500, fit, seed = 20210)
-pred_rows <- ip
-draws <- vapply(samp, function(s) stats::plogis(s$latent[pred_rows, 1]),
-                numeric(length(pred_rows)))
 saveRDS(list(coords = grid_out[, c("lon", "lat", "ADM3_PCODE")], draws = draws),
         file.path(DIR$processed, "spde_posterior_draws.rds"))
 

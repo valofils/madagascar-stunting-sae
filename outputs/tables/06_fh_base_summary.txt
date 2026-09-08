@@ -1,0 +1,32 @@
+Call:
+ emdi::fh(fixed = fml, vardir = "logit_var_smooth", combined_data = d, 
+    domains = "ADM2_PCODE", method = "ml", transformation = "no", 
+    MSE = TRUE, mse_type = "analytical")
+
+Out-of-sample domains:  0 
+In-sample domains:  119 
+
+Variance and MSE estimation:
+Variance estimation method:  ml 
+Estimated variance component(s):  0.2538037 
+MSE method:  datta-lahiri 
+
+Coefficients:
+            coefficients std.error t.value   p.value    
+(Intercept)    -0.481661  0.053377 -9.0238 < 2.2e-16 ***
+mean_wealth    -0.377966  0.126371 -2.9909  0.002781 ** 
+mean_edu        0.289248  0.109720  2.6362  0.008383 ** 
+urban_share     0.026158  0.079158  0.3305  0.741054    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Explanatory measures:
+    loglike      AIC      BIC      KIC        AdjR2 FH_R2
+1 -115.2267 240.4535 254.3491 245.4535 6.166082e-05   NaN
+
+Residual diagnostics:
+                         Skewness Kurtosis Shapiro_W  Shapiro_p
+Standardized_Residuals -0.6055990  4.48776 0.9742550 0.02191302
+Random_effects          0.2648385  2.54126 0.9868316 0.30348375
+
+Transformation: No transformation 

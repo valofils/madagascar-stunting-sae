@@ -1,0 +1,44 @@
+Call:
+ emdi::fh(fixed = fml, vardir = "logit_var_smooth", combined_data = d, 
+    domains = "ADM2_PCODE", method = "ml", transformation = "no", 
+    MSE = TRUE, mse_type = "analytical")
+
+Out-of-sample domains:  0 
+In-sample domains:  119 
+
+Variance and MSE estimation:
+Variance estimation method:  ml 
+Estimated variance component(s):  0.134191 
+MSE method:  datta-lahiri 
+
+Coefficients:
+                       coefficients std.error  t.value p.value    
+(Intercept)               -0.499268  0.042958 -11.6221 < 2e-16 ***
+mean_wealth               -0.148785  0.123291  -1.2068 0.22752    
+mean_edu                  -0.053476  0.108805  -0.4915 0.62308    
+urban_share                0.063297  0.081411   0.7775 0.43686    
+elevation                  0.199868  0.272980   0.7322 0.46406    
+ruggedness                 0.012353  0.081368   0.1518 0.87933    
+temp_min_cold             -0.045240  0.337377  -0.1341 0.89333    
+temp_seasonality           0.022276  0.140501   0.1585 0.87403    
+precip_annual              0.012391  0.103762   0.1194 0.90494    
+precip_seasonality        -0.123638  0.102170  -1.2101 0.22623    
+frac_crop                 -0.015774  0.087942  -0.1794 0.85765    
+frac_built                -0.044222  0.077220  -0.5727 0.56687    
+frac_water_perm           -0.063442  0.067724  -0.9368 0.34888    
+cattle_density            -0.040028  0.060049  -0.6666 0.50503    
+travel_time               -0.187278  0.089525  -2.0919 0.03645 *  
+travel_time_healthcare    -0.041811  0.070526  -0.5928 0.55328    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Explanatory measures:
+    loglike      AIC      BIC      KIC     AdjR2 FH_R2
+1 -90.34636 214.6927 261.9378 231.6927 0.2752363   NaN
+
+Residual diagnostics:
+                         Skewness Kurtosis Shapiro_W Shapiro_p
+Standardized_Residuals -0.2353659 3.077186 0.9872767 0.3309059
+Random_effects          0.1087799 2.385848 0.9869716 0.3119007
+
+Transformation: No transformation 

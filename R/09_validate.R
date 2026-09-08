@@ -198,35 +198,42 @@ if (file.exists(f_fit)) {
 # ===========================================================================
 # 5. Benchmarking against the design-based regional estimates
 # ===========================================================================
-f_agg1 <- file.path(DIR$processed, "aggregated_adm1.csv")
+f_agg1 <- file.path(DIR$processed, "aggregated_dhs_region.csv")
 if (file.exists(f_agg1) && file.exists(OUT$direct_adm1)) {
   a1 <- utils::read.csv(f_agg1)
   d1 <- utils::read.csv(OUT$direct_adm1)
-  cmp <- dplyr::inner_join(a1, d1[, c("ADM1_PCODE", "direct", "se", "n_children")],
-                           by = "ADM1_PCODE")
+  cmp <- dplyr::inner_join(
+    a1, d1[, c("dhs_region", "dhs_region_name", "direct", "se", "n_children")],
+    by = "dhs_region")
   cmp$diff <- cmp$est - cmp$direct
   # Is the model aggregate inside the direct estimate's confidence interval?
   cmp$within_ci <- abs(cmp$diff) < 1.96 * cmp$se
 
-  msg("regions where the model agrees with the direct estimate (95% CI): ",
+  msg("DHS regions where the model agrees with the direct estimate (95% CI): ",
       sum(cmp$within_ci, na.rm = TRUE), " of ", nrow(cmp))
   msg("mean absolute difference: ", round(100 * mean(abs(cmp$diff), na.rm = TRUE), 2),
       " percentage points")
 
-  # Ratio benchmarking: scale commune estimates so each region reproduces its
-  # design-based total. Applied as a separate output column, never in place,
-  # so the unbenchmarked model results stay inspectable.
-  bench_factor <- stats::setNames(cmp$direct / cmp$est, cmp$ADM1_PCODE)
+  # Ratio benchmarking: scale commune estimates so each DHS region reproduces
+  # its design-based total. Written as SEPARATE columns, never in place, so the
+  # unbenchmarked model output stays inspectable.
+  bench <- stats::setNames(cmp$direct / cmp$est, as.character(cmp$dhs_region))
   com <- utils::read.csv(file.path(DIR$processed, "commune_stunting.csv"))
-  com$bench_factor <- unname(bench_factor[com$ADM1_PCODE])
+  xw <- utils::read.csv(file.path(DIR$processed, "dhs_region_crosswalk_commune.csv"))
+  com <- dplyr::left_join(com, xw[, c("ADM3_PCODE", "dhs_region")],
+                          by = "ADM3_PCODE")
+  com$bench_factor <- unname(bench[as.character(com$dhs_region)])
   com$bench_factor[is.na(com$bench_factor)] <- 1
   com$est_benchmarked <- pmin(1, com$est * com$bench_factor)
   com$lower_benchmarked <- pmin(1, com$lower * com$bench_factor)
   com$upper_benchmarked <- pmin(1, com$upper * com$bench_factor)
   utils::write.csv(com, file.path(DIR$processed, "commune_stunting.csv"),
                    row.names = FALSE)
+  msg("benchmark factors: median ", round(stats::median(com$bench_factor), 3),
+      " range ", round(min(com$bench_factor), 3), " to ",
+      round(max(com$bench_factor), 3))
 
-  utils::write.csv(cmp, file.path(DIR$tables, "09_benchmark_adm1.csv"),
+  utils::write.csv(cmp, file.path(DIR$tables, "09_benchmark_dhs_region.csv"),
                    row.names = FALSE)
 
   pb <- ggplot2::ggplot(cmp, ggplot2::aes(direct, est)) +
@@ -241,9 +248,12 @@ if (file.exists(f_agg1) && file.exists(OUT$direct_adm1)) {
     ggplot2::scale_y_continuous(labels = scales::percent) +
     ggplot2::labs(x = "Design-based direct estimate (DHS region)",
                   y = "Model aggregate",
-                  title = "Benchmarking against the official survey estimates") +
+                  title = "Benchmarking against the official survey estimates",
+                  subtitle = "Error bars: 95% design CI (horizontal), credible interval (vertical)") +
     ggplot2::theme_minimal(base_size = 10)
-  save_fig(pb, "09_benchmark_adm1.png", width = 6.5, height = 5.5)
+  save_fig(pb, "09_benchmark_dhs_region.png", width = 6.5, height = 5.5)
+} else {
+  msg("NOTE: DHS-region aggregate or direct estimates missing; benchmarking skipped.")
 }
 
 # ===========================================================================

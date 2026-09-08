@@ -294,8 +294,9 @@ p2 <- ggplot2::ggplot(ef, ggplot2::aes(stats::reorder(variable, mean), mean,
 save_fig(p2, "07_covariate_effects.png", width = 8, height = 7)
 
 ## (c) the paradox itself: HAZ against elevation, and against a wealth proxy
-p3 <- ggplot2::ggplot(dat, ggplot2::aes(elevation * scl[["elevation"]] + ctr[["elevation"]],
-                                        mean_haz)) +
+# elevation is not in any hypothesis block (it defines `highland` instead), so
+# it was never standardised and is still in metres here.
+p3 <- ggplot2::ggplot(dat, ggplot2::aes(elevation, mean_haz)) +
   ggplot2::geom_point(ggplot2::aes(size = n), alpha = 0.3) +
   ggplot2::geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"),
                        colour = "firebrick") +

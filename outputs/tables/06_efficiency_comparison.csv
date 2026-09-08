@@ -1,0 +1,5 @@
+"estimator","median_se","se_ratio_vs_direct","effective_sample_gain"
+"direct",0.0604945977878753,1,1
+"FH (household-type covariates)",0.0545378107183279,0.902,1.23
+"FH (+ earth observation)",0.0524954299364431,0.868,1.33
+"SUMMER BYM2 (spatial)",0.0515222913684265,0.852,1.38

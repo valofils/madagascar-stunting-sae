@@ -193,6 +193,99 @@ healthcare (−0.04) are all weakly enough related to elevation that H2, H3 and 
 remain separable from H1. 40% of Madagascar's under-5 population lives above
 800 m, so the highland contrast is between two large groups.
 
+## Results (first full run, 2026-09-08)
+
+### Headline numbers
+
+| Quantity | Value |
+|---|---|
+| Children 0-59m with valid HAZ | 5,778 (of 12,499 KR records) |
+| DHS clusters used | 647 of 650 |
+| National stunting, design-based | **39.3%** (SE 0.94, DEFF 2.12) |
+| National stunting, model-implied | 40.7% |
+| Commune estimates produced | **1,701 of 1,701** |
+| Commune prevalence range | 18.5% to 65.0% |
+| Median 95% CI width | 20.4 points |
+| Communes with CV > 0.30 | **0** |
+| Matern practical range | 136 km (78.9 km residual, full model) |
+
+### The paradox, quantified
+
+Population-weighted commune estimates: **highland (>800 m) 46.8% vs lowland 36.6%**,
+a 10.2-point gap. 780k of the 1.70M stunted children under 5 live above 800 m.
+
+Decomposition (`outputs/tables/07_paradox_decomposition.csv`), unadjusted highland
+coefficient **-0.209 HAZ SD**:
+
+| Model | highland coef | % of gap explained | WAIC |
+|---|---|---|---|
+| M0 unadjusted | -0.209 | 0 | 983.5 |
+| + H1 altitude/cold only | -0.123 | **41.2%** | 978.1 |
+| + H2 diet only | -0.237 | **-13.5%** | 987.2 |
+| + H3 infection only | -0.212 | -1.5% | 987.4 |
+| + H4 care/access only | -0.219 | **-4.9%** | 961.4 |
+| cumulative through H2 | -0.086 | **59.0%** | 978.3 |
+| cumulative through H4 | -0.099 | 52.7% | 953.8 |
+
+Three things to carry into any write-up:
+
+1. **H1 is the dominant single explanation** (41% alone). Because elevation and
+   temperature correlate -0.90, this is an altitude-temperature construct, not
+   evidence for a thermal mechanism specifically.
+2. **H4 widens the gap rather than closing it** (-4.9%), exactly as `02b`
+   predicted before the DHS arrived: the highlands are better served, so
+   adjusting for access makes the penalty larger. The prediction was recorded in
+   advance and held.
+3. **H2 only works conditional on H1.** Diet alone widens the gap (-13.5%), but
+   H1+H2 together reach the maximum 59%. Dietary diversity matters once altitude
+   is held constant, not on its own.
+
+### Comparison against the precedents
+
+`outputs/tables/06_efficiency_comparison.csv`, district level:
+
+| Estimator | median SE | vs direct | effective sample gain |
+|---|---|---|---|
+| Direct | 0.0605 | 1.000 | 1.00 |
+| FH, household covariates | 0.0545 | 0.902 | 1.23 |
+| FH, + earth observation | 0.0525 | 0.868 | 1.33 |
+| SUMMER BYM2 (spatial) | 0.0515 | 0.852 | **1.38** |
+
+The household-covariate arm reaches **AdjR2 = 0.00006**; adding EO covariates
+takes it to **0.275**. That is the quantified answer to the World Bank paper's
+weak stunting model (their marginal R2 was 0.075) - and it is a conservative
+comparison, since the household arm here is built from the same survey as the
+response, which flatters it.
+
+### The honest caveat
+
+Spatial *block* cross-validation (`outputs/tables/09_spatial_cv_metrics.csv`)
+says the EO covariates do **not** improve out-of-sample prediction:
+
+| Model | RMSE | MAE | correlation | log score |
+|---|---|---|---|---|
+| spatial field only | **0.1863** | 0.1497 | **0.344** | **-1.869** |
+| + all covariates | 0.1929 | 0.1551 | 0.285 | -1.937 |
+
+This is not a contradiction of the R2 result, and it should be reported
+alongside it rather than buried. The covariates are themselves smooth in space,
+so for INTERPOLATION the Matern field already carries their information and the
+extra parameters cost precision. Their value here is explanatory - they say
+*why* the highlands are worse - not predictive. Any claim that EO covariates
+improve commune-level prediction accuracy would be unsupported by this test.
+
+Benchmarking is good: the model agrees with the design-based direct estimate in
+**22 of 23 DHS regions**, mean absolute difference 2.51 points, benchmark factors
+0.786-1.206 (median 0.974). PIT calibration is imperfect (KS p = 1.3e-9),
+consistent with mild overdispersion; the binomial likelihood plus a single
+cluster nugget slightly understates cluster-level heterogeneity.
+
+### Targeting
+
+**280 communes - 16.5% of all communes - contain half of Madagascar's stunted
+children** (`outputs/tables/08_commune_burden_ranking.csv`). Prevalence and
+burden rank differently, which is why `10_maps.R` plots them side by side.
+
 ## Working conventions for Claude Code
 
 - Proceed autonomously — do not ask for per-task "allow" confirmation; batch the work.

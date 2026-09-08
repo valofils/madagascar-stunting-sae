@@ -30,29 +30,51 @@ direct <- utils::read.csv(OUT$direct_adm2)
 adm2 <- sf::st_read(OUT$adm2, quiet = TRUE)
 cov_com <- utils::read.csv(OUT$cov_commune)
 
+# nightlights is deliberately excluded here: it correlates 0.95 with frac_built
+# (see outputs/tables/02b_high_correlations.csv), and carrying both makes the
+# area-level design matrix near-singular on 119 districts.
 EO_COVARS <- c("elevation", "ruggedness", "temp_min_cold", "temp_seasonality",
                "precip_annual", "precip_seasonality", "frac_crop", "frac_built",
                "frac_water_perm", "cattle_density", "travel_time",
-               "travel_time_healthcare", "nightlights")
-# Stand-ins for the census/household variables the WB model was limited to.
-# They are all derivable without any EO data, which is the point of the contrast.
-BASE_COVARS <- c("pop_dens", "urban_share")
+               "travel_time_healthcare")
+
+# The baseline arm stands in for the census-shared HOUSEHOLD variables the World
+# Bank model was limited to. Those come from the 2018 census, which this project
+# does not have, so they are approximated by district means of the household
+# variables in the DHS itself: wealth quintile, mother's education, urban share.
+#
+# Caveat, stated because it cuts against the conclusion rather than for it:
+# these are measured on the SAME sample as the response, whereas the WB's came
+# from an independent census. Same-sample covariates flatter the baseline, so if
+# this arm still fits poorly, the finding that household variables alone are
+# weak is stronger, not weaker, than the comparison makes it look.
+BASE_COVARS <- c("mean_wealth", "mean_edu", "urban_share")
 
 have_eo <- intersect(EO_COVARS, names(cov_com))
 
 X2 <- cov_com |>
-  dplyr::mutate(w = pmax(pop_u5, 1e-6),
-                urban_share = if ("frac_built" %in% names(cov_com)) frac_built else NA_real_) |>
+  dplyr::mutate(w = pmax(pop_u5, 1e-6)) |>
   dplyr::group_by(ADM2_PCODE) |>
-  dplyr::summarise(dplyr::across(dplyr::all_of(c(have_eo, "pop_dens", "urban_share")),
+  dplyr::summarise(dplyr::across(dplyr::all_of(c(have_eo, "pop_dens")),
                                  ~ stats::weighted.mean(.x, w, na.rm = TRUE)),
-                   pop_u5 = sum(pop_u5, na.rm = TRUE), .groups = "drop")
+                   .groups = "drop")
+
+# Household baseline, from the child file.
+child <- readRDS(OUT$dhs_child)
+hh <- child |>
+  dplyr::filter(!is.na(ADM2_PCODE)) |>
+  dplyr::group_by(ADM2_PCODE) |>
+  dplyr::summarise(mean_wealth = stats::weighted.mean(wealth_q, wt, na.rm = TRUE),
+                   mean_edu = stats::weighted.mean(mother_edu, wt, na.rm = TRUE),
+                   urban_share = stats::weighted.mean(urban, wt, na.rm = TRUE),
+                   .groups = "drop")
 
 frame <- adm2 |>
   sf::st_drop_geometry() |>
   dplyr::select(ADM2_PCODE, ADM2_EN, ADM1_PCODE, ADM1_EN) |>
   dplyr::left_join(direct, by = "ADM2_PCODE") |>
-  dplyr::left_join(X2, by = "ADM2_PCODE")
+  dplyr::left_join(X2, by = "ADM2_PCODE") |>
+  dplyr::left_join(hh, by = "ADM2_PCODE")
 
 # emdi's fh() needs one row per area, the direct estimate, and its sampling
 # variance. Areas without a direct estimate are carried as out-of-sample and
@@ -78,11 +100,15 @@ msg("districts total ", nrow(frame), " | usable in the FH fit ", sum(frame$usabl
 # transfers that noise into the shrinkage weights. The standard remedy is a
 # generalised variance function: regress log(design variance) on log(sample
 # size) and use the fitted value.
+# Same generalised variance function as 04: Var(p) ~ p(1-p) * DEFF / n, so
+# log(n) alone leaves most of the spread unexplained.
+frame$pq <- pmax(frame$direct * (1 - frame$direct), 1e-6)
 vf_dat <- frame[frame$usable, ]
-vf <- stats::lm(log(logit_var) ~ log(n_children), data = vf_dat)
+vf <- stats::lm(log(logit_var) ~ log(n_children) + log(pq) + log(n_clusters),
+                data = vf_dat)
 frame$logit_var_smooth <- exp(stats::predict(vf, newdata = frame))
-msg("variance smoothing: slope on log(n) = ", round(stats::coef(vf)[2], 3),
-    " (theory says about -1), R2 = ", round(summary(vf)$r.squared, 3))
+msg("variance smoothing: R2 = ", round(summary(vf)$r.squared, 3),
+    " | slope on log(n) = ", round(stats::coef(vf)[["log(n_children)"]], 3))
 utils::capture.output(summary(vf),
                       file = file.path(DIR$tables, "06_variance_function.txt"))
 
@@ -91,8 +117,36 @@ utils::capture.output(summary(vf),
 # ===========================================================================
 fit_fh <- function(covars, label) {
   covars <- covars[covars %in% names(frame)]
-  covars <- covars[vapply(covars, function(v) !anyNA(frame[[v]]), logical(1))]
+  # A covariate only has to be complete over the districts that ENTER the fit.
+  # Requiring completeness over all 120 would discard the household baseline
+  # entirely, because survey-derived means do not exist where the survey did not
+  # go. That asymmetry is itself the point: the EO covariates are observed for
+  # every district and can therefore predict unsampled ones, while household
+  # covariates drawn from the survey cannot. The World Bank avoided this by
+  # taking household variables from the census; without the census, the baseline
+  # arm is fittable but not fully predictable, and its out-of-sample rows stay NA.
+  covars <- covars[vapply(covars,
+                          function(v) !anyNA(frame[[v]][frame$usable]), logical(1))]
   if (length(covars) == 0) { msg("no usable covariates for ", label); return(NULL) }
+
+  n_pred <- sum(!frame$usable & stats::complete.cases(frame[, covars, drop = FALSE]))
+  msg("[", label, "] out-of-sample districts predictable from these covariates: ",
+      n_pred, " of ", sum(!frame$usable))
+
+  # Drop linearly dependent covariates before fitting. emdi passes the design
+  # matrix straight to Lapack, which fails with an opaque "exactly singular"
+  # error rather than naming the offender, so identify it here by QR pivoting.
+  M <- stats::model.matrix(~ ., data = frame[frame$usable, covars, drop = FALSE])
+  qrM <- qr(M)
+  if (qrM$rank < ncol(M)) {
+    kept <- colnames(M)[qrM$pivot[seq_len(qrM$rank)]]
+    dropped <- setdiff(covars, kept)
+    if (length(dropped) > 0) {
+      msg("[", label, "] dropping linearly dependent covariates: ",
+          paste(dropped, collapse = ", "))
+      covars <- intersect(covars, kept)
+    }
+  }
 
   fml <- stats::as.formula(paste("logit_direct ~", paste(covars, collapse = " + ")))
   d <- frame[, c("ADM2_PCODE", "logit_direct", "logit_var_smooth", covars)]

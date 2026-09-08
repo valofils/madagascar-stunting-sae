@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # 08_aggregate.R
 #
-# Turn the 1 km stunting surface from 05 into commune-level estimates.
+# Turn the 5 km stunting surface from 05 into commune-level estimates.
 #
 # The aggregation is population-weighted, over posterior DRAWS rather than over
 # the posterior mean. This matters. A commune's prevalence is
@@ -102,6 +102,36 @@ msg("aggregating to communes")
 com <- aggregate_draws(coords$ADM3_PCODE, w, draws)
 names(com)[1] <- "ADM3_PCODE"
 
+# A commune smaller than one 5 km cell can contain no grid centroid at all and
+# would otherwise silently vanish from the deliverable. Give each such commune
+# the posterior draws of the nearest grid cell: the Matern range is ~136 km, so
+# over the few kilometres involved the surface is effectively constant, and this
+# is far preferable to publishing a national map with holes in it.
+missing_com <- setdiff(adm3$ADM3_PCODE, com$ADM3_PCODE)
+if (length(missing_com) > 0) {
+  msg(length(missing_com), " communes contain no grid cell (smaller than one ",
+      "cell); taking the nearest cell's posterior draws")
+  target <- adm3[match(missing_com, adm3$ADM3_PCODE), ]
+  tpt <- sf::st_transform(sf::st_point_on_surface(sf::st_geometry(target)), CRS_EQA)
+  gpt <- sf::st_as_sf(coords, coords = c("lon", "lat"), crs = CRS_GEO) |>
+    sf::st_transform(CRS_EQA)
+  nearest <- sf::st_nearest_feature(tpt, gpt)
+  post_extra <- draws[nearest, , drop = FALSE]
+  extra <- data.frame(
+    ADM3_PCODE = missing_com,
+    est = rowMeans(post_extra),
+    median = apply(post_extra, 1, stats::median),
+    sd = apply(post_extra, 1, stats::sd),
+    lower = apply(post_extra, 1, stats::quantile, 0.025),
+    upper = apply(post_extra, 1, stats::quantile, 0.975),
+    n_cells = 0L,
+    row.names = NULL)
+  com <- rbind(com, extra)
+  utils::write.csv(extra[, c("ADM3_PCODE", "est")],
+                   file.path(DIR$tables, "08_communes_from_nearest_cell.csv"),
+                   row.names = FALSE)
+}
+
 com <- com |>
   dplyr::left_join(sf::st_drop_geometry(adm3), by = "ADM3_PCODE") |>
   dplyr::mutate(cv = sd / est,
@@ -117,8 +147,9 @@ msg("communes with CV > 0.30 (conventionally unpublishable): ",
 
 utils::write.csv(com, file.path(DIR$processed, "commune_stunting.csv"),
                  row.names = FALSE)
-sf::st_write(dplyr::left_join(adm3, com[, setdiff(names(com), names(sf::st_drop_geometry(adm3)))],
-                              by = "ADM3_PCODE"),
+# Join onto the geometry and the key alone: adm3 already carries ADM3_EN,
+# pop_u5 and friends, and letting those collide would suffix every column.
+sf::st_write(dplyr::left_join(adm3[, "ADM3_PCODE"], com, by = "ADM3_PCODE"),
              file.path(DIR$processed, "commune_stunting.gpkg"),
              delete_dsn = TRUE, quiet = TRUE)
 
@@ -137,6 +168,24 @@ names(d1)[1] <- "ADM1_PCODE"
 
 utils::write.csv(d2, file.path(DIR$processed, "aggregated_adm2.csv"), row.names = FALSE)
 utils::write.csv(d1, file.path(DIR$processed, "aggregated_adm1.csv"), row.names = FALSE)
+
+# DHS reporting regions. These, not adm1, are the domains the survey was powered
+# for and the ones 09 benchmarks against, so the model has to be aggregated over
+# exactly the district groupings the crosswalk defines (Antananarivo city split
+# out of Analamanga, Vatovavy and Fitovinany recombined).
+xw_f <- file.path(DIR$processed, "dhs_region_crosswalk_commune.csv")
+if (file.exists(xw_f)) {
+  xw <- utils::read.csv(xw_f)
+  map_dhs <- stats::setNames(xw$dhs_region, xw$ADM3_PCODE)
+  dr <- aggregate_draws(unname(map_dhs[coords$ADM3_PCODE]), w, draws)
+  names(dr)[1] <- "dhs_region"
+  dr$dhs_region <- as.numeric(dr$dhs_region)
+  utils::write.csv(dr, file.path(DIR$processed, "aggregated_dhs_region.csv"),
+                   row.names = FALSE)
+  msg("aggregated to ", nrow(dr), " DHS reporting regions")
+} else {
+  msg("NOTE: run 03b_dhs_region_crosswalk.R to enable DHS-region aggregation.")
+}
 
 # National figure, weighting communes by their under-5 population. Compared in
 # 09 against the design-based national direct estimate.

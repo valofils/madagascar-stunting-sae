@@ -1,0 +1,22 @@
+
+Call:
+stats::lm(formula = log(logit_var) ~ log(n_children) + log(pq) + 
+    log(n_clusters), data = vf_dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-4.2264 -0.4650  0.1923  0.6738  1.6740 
+
+Coefficients:
+                Estimate Std. Error t value Pr(>|t|)   
+(Intercept)      -2.4935     1.1010  -2.265  0.02558 * 
+log(n_children)  -0.6615     0.3175  -2.084  0.03962 * 
+log(pq)          -1.1532     0.3932  -2.933  0.00412 **
+log(n_clusters)   0.3751     0.3657   1.026  0.30741   
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 1.067 on 105 degrees of freedom
+Multiple R-squared:  0.1575,	Adjusted R-squared:  0.1334 
+F-statistic: 6.542 on 3 and 105 DF,  p-value: 0.0004241
+
