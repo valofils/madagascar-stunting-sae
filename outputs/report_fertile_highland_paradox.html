@@ -1,0 +1,595 @@
+<title>The Fertile-Highland Paradox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ---- tokens: complete light palette on bare :root ---------------------- */
+:root {
+  --paper:      #F1F3F5;
+  --surface:    #FBFCFD;
+  --surface-2:  #E8ECEF;
+  --ink:        #17212A;
+  --ink-2:      #3D4C57;
+  --muted:      #5D6C78;
+  --rule:       #D6DEE4;
+  --rule-soft:  #E3E9ED;
+  --laterite:   #A8402C;   /* widens the gap */
+  --steel:      #1A6E9E;   /* closes the gap */
+  --laterite-w: #A8402C22;
+  --steel-w:    #1A6E9E1F;
+  --shadow:     0 1px 2px rgba(23,33,42,.05), 0 8px 24px -12px rgba(23,33,42,.18);
+
+  --f-display: "Spectral", Georgia, "Times New Roman", serif;
+  --f-body:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --f-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --measure: 67ch;
+  --wide: 940px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:     #0F1519;
+    --surface:   #161E24;
+    --surface-2: #1E282F;
+    --ink:       #E4EAEE;
+    --ink-2:     #C2CDD5;
+    --muted:     #93A3AE;
+    --rule:      #27333B;
+    --rule-soft: #1F2A31;
+    --laterite:  #D2664B;
+    --steel:     #3B95C4;
+    --laterite-w:#D2664B26;
+    --steel-w:   #3B95C424;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:     #0F1519;
+  --surface:   #161E24;
+  --surface-2: #1E282F;
+  --ink:       #E4EAEE;
+  --ink-2:     #C2CDD5;
+  --muted:     #93A3AE;
+  --rule:      #27333B;
+  --rule-soft: #1F2A31;
+  --laterite:  #D2664B;
+  --steel:     #3B95C4;
+  --laterite-w:#D2664B26;
+  --steel-w:   #3B95C424;
+  --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+/* ---- base ------------------------------------------------------------- */
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: var(--wide); margin: 0 auto; padding: 0 28px 96px; }
+.col  { max-width: var(--measure); }
+
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+p { margin: 0; }
+
+a { color: var(--steel); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--steel); outline-offset: 3px; border-radius: 2px;
+}
+
+/* ---- masthead --------------------------------------------------------- */
+.mast { padding: 64px 0 34px; border-bottom: 2px solid var(--ink); }
+.eyebrow {
+  font-family: var(--f-mono); font-size: 11.5px; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--laterite); font-weight: 600;
+}
+h1 {
+  font-size: clamp(38px, 6.2vw, 62px); line-height: 1.04; font-weight: 700;
+  letter-spacing: -.018em; margin: 18px 0 0;
+}
+h1 em { font-style: italic; font-weight: 400; color: var(--ink-2); }
+.standfirst {
+  font-family: var(--f-display); font-size: 20px; line-height: 1.5;
+  color: var(--ink-2); margin-top: 20px; max-width: 60ch;
+}
+
+/* survey slug — set like a data-dictionary header */
+.slug {
+  margin-top: 34px; display: grid; gap: 1px 0;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  background: var(--rule); border: 1px solid var(--rule);
+}
+.slug div { background: var(--paper); padding: 11px 14px 12px; }
+.slug dt {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 3px;
+}
+.slug dd { margin: 0; font-family: var(--f-mono); font-size: 14px; font-weight: 500; }
+
+/* ---- sections --------------------------------------------------------- */
+section { padding-top: 58px; }
+.shead { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+.snum {
+  font-family: var(--f-mono); font-size: 12px; font-weight: 600;
+  color: var(--laterite); letter-spacing: .06em; flex: none; padding-top: 4px;
+}
+h2 { font-size: 29px; font-weight: 600; letter-spacing: -.012em; line-height: 1.18; }
+h3 {
+  font-size: 17px; font-weight: 600; margin: 30px 0 8px;
+  letter-spacing: -.004em;
+}
+section > .col > p + p { margin-top: 14px; }
+.lede { font-size: 17.5px; color: var(--ink-2); margin-bottom: 16px; }
+
+/* ---- headline figures ------------------------------------------------- */
+.figs {
+  margin-top: 26px; display: grid; gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+  background: var(--rule); border: 1px solid var(--rule);
+}
+.fig { background: var(--surface); padding: 20px 18px 18px; }
+.fig .n {
+  font-family: var(--f-display); font-size: 40px; font-weight: 700;
+  line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.fig .n small { font-size: 20px; font-weight: 600; color: var(--muted); }
+.fig .k {
+  margin-top: 9px; font-size: 13.5px; color: var(--ink-2); line-height: 1.4;
+}
+.fig .s {
+  margin-top: 6px; font-family: var(--f-mono); font-size: 11px; color: var(--muted);
+}
+
+/* ---- tables ----------------------------------------------------------- */
+.tw { overflow-x: auto; margin-top: 22px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+caption {
+  text-align: left; font-family: var(--f-mono); font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  padding-bottom: 9px;
+}
+th, td { padding: 9px 13px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+thead th {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--muted);
+  border-bottom: 1.5px solid var(--ink); vertical-align: bottom;
+}
+tbody tr { border-bottom: 1px solid var(--rule-soft); }
+tbody tr:last-child { border-bottom: 1px solid var(--rule); }
+td.num, th.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+tr.hi td { background: var(--steel-w); }
+tr.hi td:first-child { font-weight: 600; }
+.mono { font-family: var(--f-mono); font-size: .92em; }
+.pos { color: var(--steel); font-weight: 600; }
+.neg { color: var(--laterite); font-weight: 600; }
+
+/* ---- figures / charts ------------------------------------------------- */
+figure { margin: 30px 0 0; }
+.chart {
+  background: var(--surface); border: 1px solid var(--rule);
+  padding: 20px 18px 12px; box-shadow: var(--shadow);
+}
+.chart svg { display: block; width: 100%; height: auto; }
+figcaption {
+  margin-top: 11px; font-size: 13.5px; color: var(--muted); line-height: 1.5;
+  max-width: 68ch;
+}
+.ctitle { font-family: var(--f-display); font-size: 17px; font-weight: 600; }
+.csub { font-size: 13px; color: var(--muted); margin-top: 2px; margin-bottom: 6px; }
+
+/* ---- callouts --------------------------------------------------------- */
+.note {
+  margin-top: 26px; padding: 18px 20px; background: var(--surface);
+  border-left: 3px solid var(--laterite); border-top: 1px solid var(--rule);
+  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+}
+.note .nh {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--laterite); font-weight: 600;
+  margin-bottom: 7px;
+}
+.note p + p { margin-top: 11px; }
+
+ul.tight { margin: 12px 0 0; padding-left: 20px; }
+ul.tight li { margin-bottom: 9px; }
+ul.tight li::marker { color: var(--laterite); }
+
+.foot {
+  margin-top: 66px; padding-top: 20px; border-top: 1px solid var(--rule);
+  font-size: 13px; color: var(--muted);
+}
+.foot code { font-family: var(--f-mono); font-size: 12px; color: var(--ink-2); }
+
+@media (max-width: 620px) {
+  .page { padding: 0 18px 72px; }
+  .mast { padding-top: 40px; }
+  th, td { padding: 8px 10px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="page">
+
+<header class="mast">
+  <div class="eyebrow">Madagascar &middot; EDSMD-V 2021 &middot; Commune-level small-area estimation</div>
+  <h1>The Fertile&#8209;Highland<br><em>Paradox</em></h1>
+  <p class="standfirst">Child stunting is highest on Madagascar's most productive farmland. Commune estimates from the 2021 DHS put the highland penalty at 10.2 points &mdash; and altitude, not poverty, absorbs most of it.</p>
+
+  <dl class="slug">
+    <div><dt>Survey</dt><dd>EDSMD-V 2021</dd></div>
+    <div><dt>Children 0&ndash;59m</dt><dd>5,778</dd></div>
+    <div><dt>Clusters</dt><dd>647</dd></div>
+    <div><dt>Communes</dt><dd>1,701</dd></div>
+    <div><dt>Outcome</dt><dd>HAZ &lt; &minus;2 SD</dd></div>
+    <div><dt>Run</dt><dd>2026&#8209;09&#8209;08</dd></div>
+  </dl>
+</header>
+
+<!-- 1 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">01</span><h2>What the estimates say</h2></div>
+  <div class="col">
+    <p class="lede">Stunting prevalence was estimated for every commune in Madagascar, including the 1,173 that contain no DHS cluster at all.</p>
+    <p>The design-based national figure is <strong>39.3%</strong> (SE 0.94 points, design effect 2.12), matching the published EDSMD-V result. The model-implied national figure, aggregating the fitted surface over under-5 population, is 40.7%. Across communes the estimates span 19.7% to 64.1%, with a median of 40.3%.</p>
+  </div>
+
+  <div class="figs">
+    <div class="fig">
+      <div class="n">39.3<small>%</small></div>
+      <div class="k">National stunting, design-based</div>
+      <div class="s">SE 0.94 pp &middot; DEFF 2.12</div>
+    </div>
+    <div class="fig">
+      <div class="n">1,701</div>
+      <div class="k">Communes estimated</div>
+      <div class="s">only 528 hold a cluster</div>
+    </div>
+    <div class="fig">
+      <div class="n">10.2<small>pp</small></div>
+      <div class="k">Highland minus lowland gap</div>
+      <div class="s">46.8% vs 36.6%</div>
+    </div>
+    <div class="fig">
+      <div class="n">1.70<small>M</small></div>
+      <div class="k">Stunted children under five</div>
+      <div class="s">780k of them above 800&nbsp;m</div>
+    </div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>Commune estimates, betabinomial SPDE surface aggregated on under-5 population</caption>
+      <thead>
+        <tr><th>Zone</th><th class="num">Communes</th><th class="num">Under-5 pop.</th><th class="num">Stunting</th><th class="num">Stunted children</th></tr>
+      </thead>
+      <tbody>
+        <tr class="hi"><td>Highland &mdash; above 800&nbsp;m</td><td class="num">624</td><td class="num">1,666,619</td><td class="num">46.8%</td><td class="num">780,386</td></tr>
+        <tr><td>Lowland</td><td class="num">1,077</td><td class="num">2,500,904</td><td class="num">36.6%</td><td class="num">916,477</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col"><p style="margin-top:14px;font-size:14px;color:var(--muted)">40% of Madagascar's under-five population lives above 800&nbsp;m, so this is a contrast between two large groups, not a small subgroup against the rest. The six worst communes are all in Vakinankaratra and Itasy, on the Ankaratra massif: <span class="mono">Sabotsy&nbsp;Namatoana</span> tops the list at 64.1% (95% CrI 54.5&ndash;72.2).</p></div>
+</section>
+
+<!-- 2 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">02</span><h2>Why this needs a model</h2></div>
+  <div class="col">
+    <p>The 2021 DHS was powered for 23 reporting regions, not for 1,695 communes. Its 647 clusters touch <strong>528 communes &mdash; 31%</strong>. The remaining 69% contain no observation whatsoever, and even sampled districts are thin: the median district holds 5 clusters, and 20 hold fewer than 3.</p>
+    <p>Two models carry the estimation. A <span class="mono">BYM2</span> smoothed-direct model in SUMMER borrows strength across the district adjacency graph. A binomial-family geostatistical model with a Mat&eacute;rn field, fitted by <span class="mono">INLA</span>'s SPDE approximation on cluster coordinates plus earth-observation covariates, produces a 5&nbsp;km surface that is then aggregated to communes on WorldPop under-5 counts &mdash; over 500 posterior draws, not over the posterior mean, so neighbouring cells' correlated errors do not falsely cancel.</p>
+    <p>The fitted spatial field has a practical range of <strong>188&nbsp;km</strong>. That is the scale at which stunting risk in Madagascar actually varies, and it is why a purely local reading of any single commune is unwise.</p>
+  </div>
+</section>
+
+<!-- 3 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">03</span><h2>The paradox, decomposed</h2></div>
+  <div class="col">
+    <p class="lede">Four hypotheses were pre-specified. Each is a block of covariates entered into a spatial model for cluster mean HAZ, and the quantity watched is one number: the coefficient on <em>highland</em>, defined as elevation above 800&nbsp;m.</p>
+    <p>Unadjusted, highland clusters sit <strong>0.209 HAZ SD</strong> below lowland ones (95% CrI &minus;0.361 to &minus;0.056). Every model carries the SPDE field, so this is a penalty over and above smooth spatial structure &mdash; not a relabelled "central Madagascar" indicator.</p>
+  </div>
+
+  <figure>
+    <div class="chart">
+      <div class="ctitle">The highland penalty as hypotheses are added</div>
+      <div class="csub">Coefficient on <em>highland</em> (HAZ SD) with 95% credible interval. Zero means the gap is fully accounted for.</div>
+      <svg viewBox="0 0 760 306" role="img" aria-label="Highland coefficient shrinks from minus 0.209 unadjusted to minus 0.086 once altitude and diet are adjusted for, with the credible interval crossing zero.">
+        <!-- gridlines -->
+        <g stroke="var(--rule-soft)" stroke-width="1">
+          <line x1="227.2" y1="52" x2="227.2" y2="258"/>
+          <line x1="313.2" y1="52" x2="313.2" y2="258"/>
+          <line x1="399.1" y1="52" x2="399.1" y2="258"/>
+          <line x1="485.1" y1="52" x2="485.1" y2="258"/>
+          <line x1="657.0" y1="52" x2="657.0" y2="258"/>
+        </g>
+        <!-- zero line -->
+        <line x1="571.1" y1="46" x2="571.1" y2="264" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="571.1" y="38" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="var(--ink-2)">no gap</text>
+
+        <!-- column headers -->
+        <text x="145" y="38" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing=".08em" fill="var(--muted)">MODEL</text>
+        <text x="197" y="38" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing=".08em" fill="var(--muted)">CLOSED</text>
+
+        <!-- rows -->
+        <g font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">
+          <!-- M0 -->
+          <text x="145" y="74" text-anchor="end">Unadjusted</text>
+          <text x="197" y="74" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--muted)">&mdash;</text>
+          <line x1="260.7" y1="70" x2="522.5" y2="70" stroke="var(--ink-2)" stroke-width="2"/>
+          <line x1="260.7" y1="64" x2="260.7" y2="76" stroke="var(--ink-2)" stroke-width="2"/>
+          <line x1="522.5" y1="64" x2="522.5" y2="76" stroke="var(--ink-2)" stroke-width="2"/>
+          <circle cx="391.4" cy="70" r="6" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>
+
+          <!-- +H1 -->
+          <text x="145" y="116" text-anchor="end">+ H1 altitude &amp; cold</text>
+          <text x="197" y="116" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--steel)">41%</text>
+          <line x1="297.8" y1="112" x2="633.3" y2="112" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="297.8" y1="106" x2="297.8" y2="118" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="633.3" y1="106" x2="633.3" y2="118" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <circle cx="465.5" cy="112" r="6" fill="var(--steel)" stroke="var(--surface)" stroke-width="2"/>
+
+          <!-- +H2 -->
+          <text x="145" y="158" text-anchor="end">+ H2 diet quality</text>
+          <text x="197" y="158" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--steel)">59%</text>
+          <line x1="328.8" y1="154" x2="666.1" y2="154" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="328.8" y1="148" x2="328.8" y2="160" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="666.1" y1="148" x2="666.1" y2="160" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <circle cx="497.4" cy="154" r="7.5" fill="var(--steel)" stroke="var(--surface)" stroke-width="2"/>
+
+          <!-- +H3 -->
+          <text x="145" y="200" text-anchor="end">+ H3 infection load</text>
+          <text x="197" y="200" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--steel)">52%</text>
+          <line x1="315.6" y1="196" x2="655.2" y2="196" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="315.6" y1="190" x2="315.6" y2="202" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="655.2" y1="190" x2="655.2" y2="202" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <circle cx="485.4" cy="196" r="6" fill="var(--steel)" stroke="var(--surface)" stroke-width="2"/>
+
+          <!-- +H4 -->
+          <text x="145" y="242" text-anchor="end">+ H4 care &amp; access</text>
+          <text x="197" y="242" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--steel)">53%</text>
+          <line x1="318.1" y1="238" x2="654.0" y2="238" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="318.1" y1="232" x2="318.1" y2="244" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <line x1="654.0" y1="232" x2="654.0" y2="244" stroke="var(--steel)" stroke-width="2" opacity=".55"/>
+          <circle cx="486.1" cy="238" r="6" fill="var(--steel)" stroke="var(--surface)" stroke-width="2"/>
+        </g>
+
+        <!-- axis -->
+        <line x1="210" y1="264" x2="700" y2="264" stroke="var(--rule)" stroke-width="1"/>
+        <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">
+          <text x="227.2" y="282">&minus;0.4</text>
+          <text x="313.2" y="282">&minus;0.3</text>
+          <text x="399.1" y="282">&minus;0.2</text>
+          <text x="485.1" y="282">&minus;0.1</text>
+          <text x="571.1" y="282">0</text>
+          <text x="657.0" y="282">+0.1</text>
+        </g>
+        <text x="455" y="300" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="var(--muted)">Highland effect on height-for-age (SD)</text>
+      </svg>
+    </div>
+    <figcaption>Adding altitude and diet moves the penalty from &minus;0.209 to &minus;0.086 and widens the interval across zero &mdash; the gap is no longer distinguishable from nothing once those two blocks are held constant. Adding infection load and care does not improve on that.</figcaption>
+  </figure>
+
+  <h3 class="col">Each hypothesis on its own</h3>
+  <div class="col"><p>Entered cumulatively, blocks are credited in the order they arrive. Entered <em>alone</em>, each shows what it can carry by itself &mdash; and two of the four move the penalty the wrong way.</p></div>
+
+  <figure>
+    <div class="chart">
+      <div class="ctitle">Share of the highland gap each block accounts for, alone</div>
+      <div class="csub">Positive closes the gap; negative means adjusting for the block makes the highland penalty <em>larger</em>.</div>
+      <svg viewBox="0 0 760 226" role="img" aria-label="Altitude alone accounts for 41 percent of the highland gap. Diet widens it by 13.5 percent, care by 4.9 percent, infection by 1.5 percent.">
+        <g stroke="var(--rule-soft)" stroke-width="1">
+          <line x1="263.1" y1="34" x2="263.1" y2="184"/>
+          <line x1="429.2" y1="34" x2="429.2" y2="184"/>
+          <line x1="512.3" y1="34" x2="512.3" y2="184"/>
+          <line x1="595.4" y1="34" x2="595.4" y2="184"/>
+          <line x1="678.5" y1="34" x2="678.5" y2="184"/>
+        </g>
+
+        <g font-family="IBM Plex Sans, sans-serif" font-size="13" fill="var(--ink)">
+          <text x="170" y="65" text-anchor="end">H1 altitude &amp; cold</text>
+          <rect x="346.2" y="50" width="342.2" height="20" rx="3" fill="var(--steel)"/>
+          <text x="696" y="65" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--steel)">+41.2</text>
+
+          <text x="170" y="103" text-anchor="end">H2 diet quality</text>
+          <rect x="234.0" y="88" width="112.2" height="20" rx="3" fill="var(--laterite)"/>
+          <text x="226" y="103" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--laterite)">&minus;13.5</text>
+
+          <text x="170" y="141" text-anchor="end">H3 infection load</text>
+          <rect x="333.7" y="126" width="12.5" height="20" rx="3" fill="var(--laterite)"/>
+          <text x="325" y="141" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--laterite)">&minus;1.5</text>
+
+          <text x="170" y="179" text-anchor="end">H4 care &amp; access</text>
+          <rect x="305.4" y="164" width="40.8" height="20" rx="3" fill="var(--laterite)"/>
+          <text x="297" y="179" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="12.5" font-weight="600" fill="var(--laterite)">&minus;4.9</text>
+        </g>
+
+        <line x1="346.2" y1="34" x2="346.2" y2="192" stroke="var(--ink-2)" stroke-width="1.5"/>
+        <line x1="180" y1="192" x2="720" y2="192" stroke="var(--rule)" stroke-width="1"/>
+        <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">
+          <text x="263.1" y="209">&minus;10</text>
+          <text x="346.2" y="209">0</text>
+          <text x="429.2" y="209">10</text>
+          <text x="512.3" y="209">20</text>
+          <text x="595.4" y="209">30</text>
+          <text x="678.5" y="209">40</text>
+        </g>
+        <text x="450" y="222" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="var(--muted)">% of the unadjusted highland gap accounted for</text>
+      </svg>
+    </div>
+    <figcaption>H4 was predicted to behave this way before the survey arrived, and did. On every conventional deprivation measure the highlands are <em>better</em> off, so adjusting for access necessarily widens the penalty rather than explaining it.</figcaption>
+  </figure>
+
+  <div class="note col">
+    <div class="nh">Three readings to carry forward</div>
+    <p><strong>Altitude dominates, but cannot be separated from cold.</strong> H1 accounts for 41% alone. Elevation correlates &minus;0.90 with the coldest-month minimum and &minus;0.93 with mean temperature, so this is a single altitude&ndash;temperature construct. It is not evidence for a specifically thermal mechanism over a hypoxic or respiratory one.</p>
+    <p><strong>Diet only works conditional on altitude.</strong> Alone, H2 widens the gap by 13.5%. Added after H1 it takes the total to 59%, the maximum reached. Dietary diversity matters once altitude is held constant, not on its own.</p>
+    <p><strong>The highlands are not the deprived periphery.</strong> They have half the travel time to cities (200 vs 390 min), shorter trips to health facilities (55 vs 81 min), twelve times the night-light intensity, more cattle (2,184 vs 1,531 head per 10&nbsp;km cell) and 3.9&times; the cropland. The paradox is sharper than a poverty story allows.</p>
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">04</span><h2>Against the two precedents</h2></div>
+  <div class="col">
+    <p>The World Bank's 2023 commune-level SAE (WP&nbsp;10627) mapped the same pattern but reported a stunting model with marginal R&sup2; near 0.075, and stated that it could not explain the highland concentration. Fitting a Fay&ndash;Herriot model on household-type covariates alone reproduces that weakness starkly; adding earth-observation covariates does not.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>District-level Fay&ndash;Herriot and spatial estimators, against the design-based direct estimate</caption>
+      <thead>
+        <tr><th>Estimator</th><th class="num">Adj. R&sup2;</th><th class="num">Median SE</th><th class="num">vs direct</th><th class="num">Effective sample gain</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Direct (design-based)</td><td class="num">&mdash;</td><td class="num">0.0605</td><td class="num">1.000</td><td class="num">1.00&times;</td></tr>
+        <tr><td>Fay&ndash;Herriot, household covariates</td><td class="num neg">0.00006</td><td class="num">0.0545</td><td class="num">0.902</td><td class="num">1.23&times;</td></tr>
+        <tr class="hi"><td>Fay&ndash;Herriot, + earth observation</td><td class="num pos">0.275</td><td class="num">0.0525</td><td class="num">0.868</td><td class="num">1.33&times;</td></tr>
+        <tr><td>SUMMER BYM2 (spatial)</td><td class="num">&mdash;</td><td class="num">0.0515</td><td class="num">0.852</td><td class="num">1.38&times;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p style="margin-top:14px">The comparison is deliberately conservative. The household arm here is built from district means of wealth, maternal education and urban share taken from the <em>same survey</em> as the response, whereas the World Bank's came from an independent census. Same-sample covariates flatter a baseline; this one still explains essentially nothing.</p>
+    <p>The BYM2 model apportions 30.5% of residual district variation to spatially structured effects (&phi;&nbsp;=&nbsp;0.305, 95% CrI 0.021&ndash;0.793) &mdash; a wide interval, and a reminder that at 119 sampled districts the split between structured and unstructured variation is only weakly identified.</p>
+  </div>
+</section>
+
+<!-- 5 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">05</span><h2>What survives as a covariate effect</h2></div>
+  <div class="col">
+    <p>Of 27 terms in the fully adjusted HAZ model, five have credible intervals excluding zero. That is the honest yield, and it is small.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>Effects on cluster mean HAZ, per SD of covariate, fully adjusted spatial model</caption>
+      <thead>
+        <tr><th>Covariate</th><th>Block</th><th class="num">Effect</th><th class="num">95% CrI</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="mono">precip_seasonality</span></td><td>H2 diet</td><td class="num pos">+0.124</td><td class="num">0.007 to 0.240</td></tr>
+        <tr><td><span class="mono">mother_bmi</span></td><td>H4 care</td><td class="num pos">+0.093</td><td class="num">0.036 to 0.149</td></tr>
+        <tr><td><span class="mono">open_defecation</span></td><td>H3 infection</td><td class="num pos">+0.067</td><td class="num">0.004 to 0.130</td></tr>
+        <tr><td><span class="mono">improved_water</span></td><td>H3 infection</td><td class="num neg">&minus;0.065</td><td class="num">&minus;0.125 to &minus;0.004</td></tr>
+        <tr><td><span class="mono">mean_age_m</span></td><td>control</td><td class="num neg">&minus;0.055</td><td class="num">&minus;0.098 to &minus;0.012</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note col">
+    <div class="nh">Two signs point the wrong way</div>
+    <p><span class="mono">open_defecation</span> is associated with <em>higher</em> HAZ and <span class="mono">improved_water</span> with lower, both conditional on the spatial field and 25 other terms. These are almost certainly confounded rather than causal: open defecation is concentrated in the arid, low-stunting south, and improved water sources cluster in the dense highlands. They are reported unedited because dropping inconvenient coefficients is how spurious findings become durable ones &mdash; but neither should be read as a mechanism, and neither supports a WASH recommendation in either direction.</p>
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">06</span><h2>Validation, including what failed</h2></div>
+
+  <h3 class="col">Benchmarking holds</h3>
+  <div class="col"><p>Aggregated to the 23 DHS reporting regions, the model agrees with the design-based direct estimate in <strong>22 of 23</strong>, mean absolute difference 2.57 points. Ratio benchmark factors run 0.784 to 1.201 with a median of 0.967, so no region required a large correction.</p></div>
+
+  <h3 class="col">Calibration: the beta-binomial earns its place</h3>
+  <div class="col"><p>Four likelihoods were compared on the predictive distribution for a <em>new</em> cluster, using the randomised PIT of Czado, Gneiting &amp; Held (2009) &mdash; the valid diagnostic for count data, where an ordinary PIT is not uniform even under a perfect model.</p></div>
+
+  <div class="tw">
+    <table>
+      <caption>Likelihood comparison &mdash; calibration, not WAIC, selected the model</caption>
+      <thead>
+        <tr><th>Likelihood</th><th class="num">WAIC</th><th class="num">log CPO</th><th class="num">Pearson disp.</th><th class="num">PIT p</th><th class="num">90% coverage</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Binomial</td><td class="num">2323.8</td><td class="num">&minus;1171.2</td><td class="num">0.81</td><td class="num neg">0.005</td><td class="num">0.986</td></tr>
+        <tr><td>Binomial + nugget</td><td class="num">2316.9</td><td class="num">&minus;1170.1</td><td class="num">0.74</td><td class="num neg">0.049</td><td class="num">0.974</td></tr>
+        <tr class="hi"><td>Beta-binomial <em>(selected)</em></td><td class="num">2337.9</td><td class="num">&minus;1169.5</td><td class="num">0.88</td><td class="num pos">0.333</td><td class="num">0.974</td></tr>
+        <tr><td>Beta-binomial + nugget</td><td class="num">2336.9</td><td class="num">&minus;1169.3</td><td class="num">0.85</td><td class="num pos">0.382</td><td class="num">0.975</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <p style="margin-top:14px">WAIC and DIC prefer the binomial with a nugget by roughly 20 units; leave-one-out log CPO and calibration prefer the beta-binomial. The tie was broken on purpose: this model exists to give intervals where the survey never went, so whether the new-cluster predictive distribution is honest outranks in-sample predictive density. Adding a nugget on top of the beta-binomial leaves it unidentified &mdash; nugget precision ~2000 with a credible interval spanning three orders of magnitude &mdash; so the parsimonious form was taken, with intra-cluster correlation &rho;&nbsp;=&nbsp;0.029.</p>
+  </div>
+
+  <div class="note col">
+    <div class="nh">The covariates do not improve prediction</div>
+    <p>Under spatial <em>block</em> cross-validation &mdash; contiguous 60&nbsp;km tiles held out, so the model must extrapolate the distance it really faces &mdash; adding all earth-observation covariates makes out-of-sample prediction <strong>worse</strong>: RMSE 0.193 against 0.186 for the spatial field alone, correlation 0.287 against 0.350.</p>
+    <p>This does not contradict the R&sup2; result, and it must be reported beside it. The covariates are themselves smooth in space, so for interpolation the Mat&eacute;rn field already carries their information and the extra parameters cost precision. <strong>Their value here is explanatory, not predictive.</strong> Any claim that earth-observation covariates improve commune-level prediction accuracy is unsupported by this test.</p>
+    <p>Relatedly, in the surface model only <span class="mono">precip_seasonality</span> and <span class="mono">frac_built</span> have intervals excluding zero; elevation itself is &minus;0.047 (&minus;0.466 to 0.372). The 188&nbsp;km field absorbs it. The explanatory evidence comes from the HAZ decomposition, not from the surface model's fixed effects.</p>
+  </div>
+
+  <div class="col">
+    <h3>Intervals are conservative, not exact</h3>
+    <p>Every specification over-covers: about 97% of observations fall inside nominal 90% predictive intervals, and every PIT histogram is hump-shaped. The published commune intervals are therefore wider than nominal &mdash; the safer direction for a targeting product, but they should not be described as exact.</p>
+  </div>
+</section>
+
+<!-- 7 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">07</span><h2>Where the children are</h2></div>
+  <div class="col">
+    <p class="lede">Prevalence and burden rank differently, and conflating them misallocates.</p>
+    <p><strong>281 communes &mdash; 16.5% of the total &mdash; contain half of Madagascar's stunted children.</strong> The heaviest single burdens sit in peri-urban Analamanga and around Antsirabe, where high prevalence meets dense settlement. The highest-prevalence communes, by contrast, are small Ankaratra highland communes of a few thousand children each.</p>
+  </div>
+
+  <div class="tw">
+    <table>
+      <caption>Ten communes carrying the largest absolute burden</caption>
+      <thead>
+        <tr><th>Commune</th><th>District</th><th>Region</th><th class="num">Prevalence</th><th class="num">Under-5</th><th class="num">Stunted</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Ankadikely Ilafy</td><td>Antananarivo Avaradrano</td><td>Analamanga</td><td class="num">51.9%</td><td class="num">46,837</td><td class="num">24,297</td></tr>
+        <tr><td>5e Arrondissement</td><td>Antananarivo</td><td>Analamanga</td><td class="num">40.3%</td><td class="num">55,130</td><td class="num">22,195</td></tr>
+        <tr><td>Ambano</td><td>Antsirabe II</td><td>Vakinankaratra</td><td class="num">52.5%</td><td class="num">36,648</td><td class="num">19,238</td></tr>
+        <tr><td>Ambohimanga Rova</td><td>Antananarivo Avaradrano</td><td>Analamanga</td><td class="num">50.3%</td><td class="num">26,183</td><td class="num">13,161</td></tr>
+        <tr><td>6e Arrondissement</td><td>Antananarivo</td><td>Analamanga</td><td class="num">43.1%</td><td class="num">29,792</td><td class="num">12,847</td></tr>
+        <tr><td>Ambovombe</td><td>Ambovombe-Androy</td><td>Androy</td><td class="num">52.1%</td><td class="num">20,203</td><td class="num">10,534</td></tr>
+        <tr><td>Sabotsy Namehana</td><td>Antananarivo Avaradrano</td><td>Analamanga</td><td class="num">43.3%</td><td class="num">23,581</td><td class="num">10,206</td></tr>
+        <tr><td>Antetezambaro</td><td>Toamasina II</td><td>Atsinanana</td><td class="num">39.1%</td><td class="num">25,717</td><td class="num">10,067</td></tr>
+        <tr><td>Ambatolampy</td><td>Ambohidratrimo</td><td>Analamanga</td><td class="num">48.4%</td><td class="num">17,580</td><td class="num">8,516</td></tr>
+        <tr><td>Ambohibary</td><td>Antsirabe II</td><td>Vakinankaratra</td><td class="num">60.2%</td><td class="num">13,912</td><td class="num">8,371</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 8 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">08</span><h2>Limitations</h2></div>
+  <div class="col">
+    <ul class="tight">
+      <li><strong>This is mediation, not causal identification.</strong> A covariate that absorbs the highland penalty is a candidate mechanism, nothing more. Blocks are correlated, so entry order affects credit &mdash; which is why each block is also reported alone.</li>
+      <li><strong>Altitude and temperature are one variable here</strong> (r&nbsp;=&nbsp;&minus;0.90). No model on these data can separate cold stress from altitude per se.</li>
+      <li><strong>Cattle density is a wealth proxy, not a diet measure.</strong> The highlands have more cattle and more stunting; Malagasy zebu function largely as stored wealth and ritual capital rather than as food for young children. H2 rests on the dietary-diversity variables, not on livestock.</li>
+      <li><strong>Cluster-to-commune assignment is approximate.</strong> DHS coordinates are displaced up to 2&nbsp;km (urban) or 5&nbsp;km (rural), with 1% of rural clusters to 10&nbsp;km. Displacement is restricted to admin2, so cluster-to-<em>district</em> is exact, but a cluster can cross a commune boundary. Covariates are therefore read over a displacement-matched buffer, never at the point.</li>
+      <li><strong>Land cover enters the surface at commune resolution.</strong> Computing 10&nbsp;m WorldCover fractions for every grid cell is not affordable, so within-commune variation in cropland and built-up area is left to the spatial field.</li>
+      <li><strong>45 communes are smaller than one 5&nbsp;km grid cell</strong> and take the nearest cell's posterior draws. At a 188&nbsp;km range the surface is effectively constant over those distances, but their estimates are borrowed rather than computed.</li>
+      <li><strong>Region Ambatosoa cannot be reported separately.</strong> It exists in the 2025 adm1 layer but has no districts or communes in adm2/adm3; its territory sits under Analanjirofo. No population is lost.</li>
+      <li><strong>The IHME external comparison has not been run</strong> &mdash; the Local Burden of Disease raster is not redistributable and is not present locally.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 9 ------------------------------------------------------------------- -->
+<section>
+  <div class="shead"><span class="snum">09</span><h2>Reproducing this</h2></div>
+  <div class="col">
+    <p>The pipeline runs end to end from <span class="mono">run_all.R</span> in R&nbsp;4.5.1. Boundaries, WorldPop and every earth-observation raster download automatically and cache; only the DHS microdata must be supplied, and it is gitignored under the DHS terms of use, which forbid redistribution.</p>
+    <p>Three boundary defects in the official 2025 layers are repaired explicitly, with an audit trail written to <span class="mono">outputs/tables/</span>: an incomplete 2021 Vatovavy&ndash;Fitovinany split, inconsistent Antananarivo arrondissement p-codes, and a commune adjacency graph in four components that an ICAR prior requires to be connected.</p>
+    <p>Night lights come from the harmonised DMSP&ndash;VIIRS series rather than NOAA's annual VNL V2, which now sits behind an account. Values are DMSP-like digital numbers on a 0&ndash;63 scale, not radiances, and they saturate over Antananarivo &mdash; usable as a rural gradient, not as a linear intensity measure.</p>
+  </div>
+
+  <div class="foot">
+    Figures at full resolution in <code>outputs/figures/</code>; every number here is reproduced in <code>outputs/tables/</code>.
+    Estimates in <code>data/processed/commune_stunting.gpkg</code>, benchmarked and unbenchmarked.
+    Source: DHS EDSMD-V 2021 (ICF/INSTAT), WorldPop 2020 constrained, ESA WorldCover 2021, WorldClim 2.1, SRTM, GLW4, Malaria Atlas Project accessibility surfaces.
+  </div>
+</section>
+
+</div>
