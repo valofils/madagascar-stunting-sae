@@ -119,8 +119,12 @@ Three source substitutions worth recording, because they change how results must
 
 ## Environment & reproducibility
 
-- R 4.5.1 with: `SUMMER`, `INLA` (own repo), `survey`, `srvyr`, `emdi`, `sae`, `sf`, `terra`, `exactextractr`, `spdep`, `geodata`, `dplyr`, `ggplot2`, `haven`.
-- `renv` is **opt-in** via `R/00b_renv_init.R`, not wired into the analysis scripts — see the rationale in that file. Run `renv::snapshot()` after any package install.
+- R 4.5.1 with: `SUMMER`, `INLA` (own repo), `survey`, `srvyr`, `emdi`, `sf`, `terra`, `exactextractr`, `spdep`, `geodata`, `dplyr`, `ggplot2`, `haven`. **`sae` is not used** — it was in the original plan, but `06` fits the Fay-Herriot model with `emdi::fh()`.
+- **`renv` is active.** `renv.lock` pins 21 direct packages and their dependencies against R 4.5.1; `renv::status()` reports the project in a consistent state. Restore elsewhere with `renv::restore()`.
+- Two things make this lockfile actually restorable, and both are easy to lose:
+  - **INLA is not on CRAN.** Its repository must be in `options(repos)` before snapshotting, or renv cannot attribute the package to a known source and `snapshot()` aborts. `R/00b_renv_init.R` sets it. Forcing past the check would write a lockfile that cannot be restored.
+  - **Record only what is used.** Listing an unused package (`sae`) dragged its whole dependency chain — lme4, nloptr, RcppEigen, Rdpack, reformulas — into the lock and left `renv::status()` permanently out of sync. `renv` itself must be listed too, or it is used-but-unrecorded.
+- Re-run `renv::snapshot()` after any package install.
 - If any Python is used for GEE extraction (`rgee` or the GEE Python API), keep a frozen `requirements.txt`; use `python -m pip`; venv on Windows.
 - Git: commit incrementally; push source files only (`.R`, `.md`, `.py`) — no notebooks, no zip archives. Portfolio: github.com/valofils.
 - `.gitignore` excludes all DHS microdata and large rasters (DHS terms forbid redistribution).

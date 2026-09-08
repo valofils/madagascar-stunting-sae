@@ -115,15 +115,18 @@ issues* section of [CLAUDE.md](CLAUDE.md) before "fixing" anything there.
 R 4.5.1 on Windows. Key packages: `INLA`, `SUMMER`, `emdi`, `survey`, `srvyr`,
 `sf`, `terra`, `exactextractr`, `spdep`, `geodata`.
 
-`renv` setup is opt-in and deliberately not wired into the analysis scripts:
+`renv` is active: `renv.lock` pins the environment against R 4.5.1 and
+`renv::status()` reports it consistent. To reproduce elsewhere:
 
 ```bash
-Rscript R/00b_renv_init.R
+Rscript -e "renv::restore()"
 ```
 
-The rationale is documented at the top of that file — `renv::init()` switches R to
-a project-private library, which is a decision rather than something an analysis
-script should do as a side effect.
+The setup script (`R/00b_renv_init.R`) remains opt-in and is not wired into the
+analysis scripts — `renv::init()` switches R to a project-private library, which
+is a decision rather than something an analysis script should do as a side
+effect. It also declares the INLA repository, which is required: INLA is not on
+CRAN, and without it `renv::snapshot()` refuses to write a lockfile.
 
 ## Outputs
 

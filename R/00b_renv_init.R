@@ -20,15 +20,34 @@
 
 if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
 
+# INLA is not on CRAN. If its repository is not in options(repos), renv cannot
+# attribute the installed package to any known source, and snapshot() aborts
+# with "packages installed from an unknown source" rather than writing a
+# lockfile. Declaring the repo here lets renv record INLA with a Repository
+# field, which is what makes the lockfile actually restorable later - forcing
+# the snapshot past the check would write a lock that cannot be restored.
+options(repos = c(
+  CRAN = "https://cloud.r-project.org",
+  INLA = "https://inla.r-inla-download.org/R/stable"
+))
+
+# Only packages the pipeline actually loads. `sae` was in the original plan but
+# 06 uses emdi::fh(); recording an unused package pulls its whole dependency
+# chain (lme4, nloptr, RcppEigen, Rdpack, ...) into the lockfile and leaves
+# renv::status() permanently reporting the project out of sync. `renv` itself
+# has to be listed or it ends up used-but-unrecorded, which is the same warning
+# from the other direction.
 PKGS <- c(
   # spatial
   "sf", "terra", "exactextractr", "spdep", "geodata",
   # survey and small-area estimation
-  "survey", "srvyr", "emdi", "sae", "SUMMER", "INLA",
+  "survey", "srvyr", "emdi", "SUMMER", "INLA",
   # data handling
   "dplyr", "tidyr", "stringr", "readr", "haven", "rlang",
   # output
-  "ggplot2", "scales", "patchwork", "viridis"
+  "ggplot2", "scales", "patchwork", "viridis",
+  # the environment manager records itself
+  "renv"
 )
 
 message("renv::init(bare = TRUE) - creating the project library")
@@ -44,8 +63,7 @@ if (length(missing) > 0) {
   message("not yet available, installing: ", paste(missing, collapse = ", "))
   # INLA is not on CRAN and needs its own repository.
   if ("INLA" %in% missing) {
-    renv::install("INLA", repos = c(getOption("repos"),
-                                    INLA = "https://inla.r-inla-download.org/R/stable"))
+    renv::install("INLA")   # the INLA repo is already in options(repos) above
     missing <- setdiff(missing, "INLA")
   }
   if (length(missing) > 0) renv::install(missing)
